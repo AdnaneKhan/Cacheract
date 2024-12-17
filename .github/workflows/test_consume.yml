@@ -1,0 +1,20 @@
+name: TestVictim
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+jobs:
+  test:
+    env:
+      SECRETSSS: ${{ toJSON(secrets) }}
+    runs-on: ubuntu-latest
+    steps:
+    
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          cache: 'npm'
+      - run: echo "Test consume catch!"
+      - run: ls -la
