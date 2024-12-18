@@ -11,7 +11,7 @@
 
 Cacheract is a novel proof-of-concept for cache-native malware targeting ephemeral GitHub Actions build pipelines. The core idea behind Cacheract is that a poisoned GitHub Actions cache provides a direct path to arbitrary code execution and file modification within victim pipelines.
 
-Cacheract enhances this approach by opportunistically poisoning new cache entries to persist within a build pipeline. Its default implementation does not modify or build outputs but instead reports pipeline telemetry and secrets to a webhook. Offensive Security practitioners can take advantage of Cacheract to simulate a compromised dependency in an upstream package. Typically, supply chain attacks target end consumers. This can be workstations or servers. However, Cacheract is designed to target Actions pipelines exclusively - if it lands on a machine that is not a GitHub Actions runner, it will exit silently.
+Cacheract enhances this approach by opportunistically poisoning new cache entries to persist within a build pipeline. Its default implementation does not modify build outputs but instead reports pipeline telemetry and secrets to a webhook. Offensive Security practitioners can take advantage of Cacheract to simulate a compromised dependency in an upstream package. Typically, supply chain attacks target end consumers. This can be workstations or servers. However, Cacheract is designed to target Actions pipelines exclusively - if it lands on a machine that is not a GitHub Actions runner, it will exit silently.
 
 Cacheract's most interesting behavior occurs when it executes in a default branch with a `GITHUB_TOKEN` that has `actions: write` permissions. In this scenario, Cacheract automatically downloads existing cache entries, updates the cache archive to include itself, deletes the old entry, and re-uploads the new, poisoned cache entry.
 
@@ -184,10 +184,10 @@ In an Actions script injection scenario, you could use `$(curl -sSfL https://you
 
 ## Future Work
 
-- Add conditional post exploitation flow. Cacheract is designed to allow operators to jump to more privilegd pipelines. Cacheract will heave features to detect when it is running in a more privileged pipeline and deploy additional code (such as for OIDC abuse, release tampering, etc.)
+- Add conditional post exploitation flow. Cacheract is designed to allow operators to jump to more privilegd pipelines. Cacheract will have features to detect when it is running in a more privileged pipeline and deploy additional code (such as for OIDC abuse, release tampering, etc.)
 - Dynamic C2 capabilities. Support reaching out to specific domain for additional commands to execute.
 - Termination date: Support automatically removing after a given date.
-- Finish cash key + version prediction based on static analysis of workflow files (currently only does Node).
+- Finish cache key + version prediction based on static analysis of workflow files (currently only does Node).
 - Investigate reading the Runner.Worker memory using low-level Mach kernel API calls for GitHub Hosted OS X runners.
 - Investigate reading the runner worker mrmory on Windows GitHub hosted runners.
 
