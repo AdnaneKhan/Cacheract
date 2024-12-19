@@ -19,6 +19,13 @@ In this scenario, Cacheract has the potential to persist for weeks or even month
 
 Cacheract supports GitHub-hosted Linux ARM and x64 runners. Due to configuration and permission differences, Cacheract does not operate on self-hosted runners, Windows, or macOS runners. Supporting MacOS and Windows GitHub hosted runners is an area for future research - the main hurdle is writing a binary that can extract the secrets from the `Runner.Worker` memory without any preconditions or pausing the process.
 
+## Quick Start
+
+1. Clone the Cacheract repository: `git clone https://github.com/adnaneKhan/cacheract`
+2. Update `src/config.ts` and configure the `REPLACEMENTS` (URLs or Base64 encoded files), along with the `DISCORD_WEBHOOK`. You can set custom cache keys and versions here as well.
+3. Run `npm build` to build Cacheract. It will be in `dist/bundle.js`.
+4. Leverage any privileged code execution within a repository by running `node bundle.js`. Currently, Cacheract DOES NOT support piping the file into `node` due to the self-insertation mechanism. You must save it to disk otherwise it will not be able to poison future caches with itself.
+
 ## What Does Cacheract Do?
 
 Cacheract works by overwriting the `action.yml` file for subsequent actions used within the pipeline to point to malicious, trojanized code. For this proof-of-concept, it targets `actions/checkout`, as most pipelines that use caching also check out code.
