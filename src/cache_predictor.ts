@@ -119,7 +119,7 @@ export async function calculateCacheConfigs(): Promise<Set<string>> {
         for (const action of interestingActions) {
             // We don't calcualte cache if cache it not defined
             //  (with exception of setup-go and actions/cache)
-            let packageManager = action.details.with.cache;
+            let packageManager = action.details?.with?.cache;
             if (!packageManager) {
                 continue;
             }
