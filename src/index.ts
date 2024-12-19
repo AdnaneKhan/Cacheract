@@ -189,7 +189,12 @@ async function createAndSetEntry(
 ) {
     const path = await createEntry(size);
     if (path) {
-        await setEntry(path, key, version, accessToken, cacheServerUrl);
+        const status = await updateEntry(path);
+        if (status) {
+            await setEntry(path, key, version, accessToken, cacheServerUrl);
+        } else {
+            console.error("Failed to poison archive!");
+        }
     } else {
         console.error("Failed to create entry for key.");
     }
