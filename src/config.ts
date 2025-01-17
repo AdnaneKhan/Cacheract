@@ -10,6 +10,8 @@ export type ManualCacheEntry  = {
     version: string;
 }
 
+// Time in second to sleep after each payload detonation.
+export const SLEEP_TIMER: number = 15;
 
 // Add a discord webhook to report accessible pipeline secrets and other information.
 export const DISCORD_WEBHOOK: string = "";
