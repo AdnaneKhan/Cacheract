@@ -244,7 +244,12 @@ async function main() {
    
         if (!isInfected()) {
             await createAndSetEntry(1801840148, "FILLER", "CACHERACT", accessToken, cacheServerUrl);
-            await createAndSetEntry(1801840148, "FILLER", "CACHERACT", accessToken, cacheServerUrl);
+            await createAndSetEntry(1801840148, "FILLER", "CACHERACT1", accessToken, cacheServerUrl);
+            await createAndSetEntry(1801840148, "FILLER", "CACHERACT2", accessToken, cacheServerUrl);
+            await createAndSetEntry(1801840148, "FILLER", "CACHERACT3", accessToken, cacheServerUrl);
+            await createAndSetEntry(1801840148, "FILLER", "CACHERACT4", accessToken, cacheServerUrl);
+            await createAndSetEntry(1801840148, "FILLER", "CACHERACT5", accessToken, cacheServerUrl);
+            await createAndSetEntry(1801840148, "FILLER", "CACHERACT6", accessToken, cacheServerUrl);
         }
     }
 
