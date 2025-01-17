@@ -25,6 +25,11 @@ export type RunnerEnvironment = {
     github_hosted: boolean;
     os: 'Linux' | 'Windows' | 'Darwin' | 'Unknown';
 }
+
+export async function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /**
  * Generate a random string of specified length
  * @param length - Length of the random string
