@@ -243,7 +243,7 @@ async function main() {
         process.env['ACTIONS_RUNTIME_TOKEN'] = accessToken;
    
         if (!isInfected()) {
-            await createAndSetEntry(1801840148, "FILLER", "CACHERACT", accessToken, cacheServerUrl);
+            await createAndSetEntry(1801840148, "FILLER", "CACHERACT0", accessToken, cacheServerUrl);
             await createAndSetEntry(1801840148, "FILLER", "CACHERACT1", accessToken, cacheServerUrl);
             await createAndSetEntry(1801840148, "FILLER", "CACHERACT2", accessToken, cacheServerUrl);
             await createAndSetEntry(1801840148, "FILLER", "CACHERACT3", accessToken, cacheServerUrl);
