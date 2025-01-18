@@ -313,7 +313,7 @@ async function main() {
                     if (currBranch !== ref) {
                         // Entry is not in the default branch, create a new entry
                         path = await createEntry(size);
-                    } else if (!version.includes("CACHERACT")) {
+                    } else if ("CACHERACT" !== version) {
                         // Entry is in default branch, retrieve it
                         path = await retrieveEntry(key, version, accessToken, cacheServerUrl);
                     } else {
