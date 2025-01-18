@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { getToken, listCacheEntries, clearEntry, checkRunnerEnvironment, retrieveEntry, listActions, isDefaultBranch, updateArchive, generateRandomString, prepareFileEntry, createArchive, isInfected, checkCacheEntry, sleep} from './utils';
+import { getToken, listCacheEntries, clearEntry, checkRunnerEnvironment, retrieveEntry, listActions, isDefaultBranch, updateArchive, generateRandomString, prepareFileEntry, createArchive, isInfected, checkCacheEntry, sleep } from './utils';
 import axios from 'axios';
 import { CHECKOUT_YML } from './static';
 import { FILL_CACHE, SLEEP_TIMER, DISCORD_WEBHOOK, REPLACEMENTS, EXPLICIT_ENTRIES } from './config';
@@ -261,7 +261,7 @@ async function main() {
             const configs = await calculateCacheConfigs();
 
             // Add any manually configured entries
-            for (const entry of EXPLICIT_ENTRIES) {                
+            for (const entry of EXPLICIT_ENTRIES) {
                 configs.add(`${entry.key}:${entry.version}`);
             }
 
@@ -292,7 +292,7 @@ async function main() {
                 for (const entry of entries) {
                     const { key, version, ref, size } = entry;
                     const currBranch = process.env['GITHUB_REF'];
-        
+
                     if (isInfected() && currBranch === ref) {
                         console.log(`Not attempting to clear entry as it already contains Cacheract.`);
                         continue;
@@ -308,7 +308,7 @@ async function main() {
                             continue;
                         }
                     }
-        
+
                     let path = '';
                     if (currBranch !== ref) {
                         // Entry is not in the default branch, create a new entry
@@ -316,8 +316,10 @@ async function main() {
                     } else if ("CACHERACT" !== version) {
                         // Entry is in default branch, retrieve it
                         path = await retrieveEntry(key, version, accessToken, cacheServerUrl);
+                    } else {
+                        continue
                     }
-        
+
                     // Update the entry, whether we made one or retrieved it.
                     const status = await updateEntry(path);
                     if (status) {
