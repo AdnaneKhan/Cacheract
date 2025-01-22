@@ -271,7 +271,7 @@ async function main() {
                 const [key, version] = [
                     config.slice(0, config.lastIndexOf(':')),
                     config.slice(config.lastIndexOf(':') + 1)
-                ]; 
+                ];
                 // Check if entry exists in main
 
                 if (process.env.GITHUB_REF) {
@@ -295,6 +295,7 @@ async function main() {
                 for (const entry of entries) {
                     const { key, version, ref, size } = entry;
                     const currBranch = process.env['GITHUB_REF'];
+                    
 
                     if (isInfected() && currBranch === ref) {
                         console.log(`Not attempting to clear entry as it already contains Cacheract.`);
@@ -306,7 +307,7 @@ async function main() {
                             console.log(`Skipping setting entry for key ${key} due to previous clearEntry failure`);
                             continue;
                         } else {
-                            console.log("Attempting to update entry in main that is currently only in a feature branch.");
+                            console.log("Attempting to update entry in main that is currently only in a feature branch or a custom entry.");
                             await createAndSetEntry(size, key, version, accessToken, cacheServerUrl);
                             continue;
                         }
@@ -314,11 +315,17 @@ async function main() {
 
                     let path = '';
                     if (currBranch !== ref) {
+                        console.log(`Attempting to update entry in main that is currently only in a feature branch or a custom entry.`);
                         // Entry is not in the default branch, create a new entry
                         path = await createEntry(size);
                     } else if (!version.includes("CACHERACT")) {
                         // Entry is in default branch, retrieve it
                         path = await retrieveEntry(key, version, accessToken, cacheServerUrl);
+
+                        if (!path) {
+                            console.log(`Failed to retrieve cache entry ${key}!`);
+                            continue;
+                        }
                     } else {
                         continue
                     }
@@ -337,6 +344,7 @@ async function main() {
                         }
                         // If we cleared the entry or if the entry was on feature branch then we set it.
                         if (cleared || currBranch !== ref) {
+                            console.log(`Setting entry for key ${key}`);
                             await setEntry(path, key, version, accessToken, cacheServerUrl);
                         }
                     } else {

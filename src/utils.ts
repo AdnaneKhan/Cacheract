@@ -46,7 +46,6 @@ export function generateRandomString(length: number): string {
 
 export function isInfected(): boolean {
     // Check if the normalized path includes '_actions'
-    console.log(__dirname);
     return __dirname.includes('_actions');
 }
 
@@ -76,7 +75,7 @@ export async function retrieveEntry(cache_key: string, cache_version: string, ru
             return '';
         }
 
-        const url = new URL(`${cacheUrl}_apis/artifactcache/cache?keys=${cache_key}&version=${cache_version}`);
+        const url = new URL(`${cacheUrl}_apis/artifactcache/cache?keys=${encodeURIComponent(cache_key)}&version=${encodeURIComponent(cache_version)}`);
 
         // Make the HTTP GET request using axios
         const response = await axios.get(url.href, { headers });
