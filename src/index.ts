@@ -268,7 +268,10 @@ async function main() {
             console.log('Calculated cache configs:', configs)
 
             for (const config of configs) {
-                const [key, version] = config.split(':');
+                const [key, version] = [
+                    config.slice(0, config.lastIndexOf(':')),
+                    config.slice(config.lastIndexOf(':') + 1)
+                ]; 
                 // Check if entry exists in main
 
                 if (process.env.GITHUB_REF) {
