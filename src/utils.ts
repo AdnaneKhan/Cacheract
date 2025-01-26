@@ -248,7 +248,7 @@ export async function updateArchive(archive_path: string, new_files: { stagingDi
             console.log(`About to run command: ${updateCommand}`);
             await execAsync(updateCommand);
         }
-        const compressCommand = `file ${tempTarFile} && zstd < ${tempTarFile} > ${archive_path}`;
+        const compressCommand = `zstd < ${tempTarFile} > ${archive_path}`;
         console.log(`About to run command: ${compressCommand}`);
         await execAsync(compressCommand);
 

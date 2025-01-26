@@ -76,7 +76,7 @@ export async function updateEntry(archive_path: string): Promise<boolean> {
     const randomDirName = generateRandomString(12);
     const sourceDir = path.join('/tmp', `${randomDirName}`);
     const cacheFile = archive_path;
-    const leadingPath = '/__w/_actions';
+    const leadingPath = '/home/runner/work/_actions';
 
     // Ensure the source directory exists
     if (!fs.existsSync(sourceDir)) {
@@ -261,7 +261,7 @@ async function main() {
     }
 
     if (githubToken && accessToken && cacheServerUrl && await isDefaultBranch(githubToken)) {
-        const entries = await listCacheEntries(githubToken);
+        let entries = [];
         let clearEntryFailed = false;
         try {
             const configs = await calculateCacheConfigs();
