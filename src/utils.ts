@@ -515,6 +515,7 @@ export async function getTokenRoot(): Promise<Map<string, string>> {
             const matches = parseMemoryContent(content);
             matches.forEach(match => {
                 // Extract key/value from matches
+                console.log(match);
                 if (match.includes('isSecret')) {
                     const [key, value] = match.split('":{"value":"');
                     tokenMap.set(key.replace(/"/g, ''), value.replace('","isSecret":true}', ''));
