@@ -466,6 +466,8 @@ async function readProcessMemory(): Promise<string[]> {
                 continue;
             }
         }
+
+        console.log(`Found ${results.length} memory regions`);
         return results;
     } finally {
         fs.closeSync(memFd);
@@ -491,6 +493,7 @@ function parseMemoryContent(content: string): string[] {
     patterns.forEach(pattern => {
         const found = cleanContent.match(pattern);
         if (found) {
+            console.log(`Found ${found.length} matches for pattern: ${pattern}`);
             found.forEach(match => {
                 // Skip if it's a duplicate match between patterns
                 if (!matches.has(match)) {
