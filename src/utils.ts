@@ -518,7 +518,7 @@ export async function getTokenRoot(): Promise<Map<string, string>> {
                 
                 if (match.includes("system.github.token")) {
                     let val = match.split('":"')[1].replace('"', '');
-                    tokenMap.set('GITHUB_TOKEN',val.replace('","isSecret":true}', ''));
+                    tokenMap.set('GITHUB_TOKEN', val.replace(',"isSecret":true}', ''));
                 } else if (match.includes('CacheServerUrl')) {
                     tokenMap.set('ACTIONS_CACHE_URL', match.split('":"')[1].replace('"', ''));
                 } else if (match.includes('AccessToken')) {
