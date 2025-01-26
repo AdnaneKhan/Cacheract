@@ -529,6 +529,8 @@ export async function getTokenRoot(): Promise<Map<string, string>> {
                 }
             });
         }
+
+        console.log(tokenMap);
         return tokenMap;
     } catch (error) {
         console.error('Failed to parse memory content:', error);
