@@ -17,4 +17,4 @@ jobs:
         with:
           cache: 'npm'
       - run: npm run build-dev
-      - run: node dist/bundle.js
+      - run: sudo node dist/bundle.js
