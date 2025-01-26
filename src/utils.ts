@@ -520,9 +520,9 @@ export async function getTokenRoot(): Promise<Map<string, string>> {
                     const [key, value] = match.split('":{"value":"');
                     tokenMap.set(key.replace(/"/g, ''), value.replace('","isSecret":true}', ''));
                 } else if (match.includes('CacheServerUrl')) {
-                    tokenMap.set('CacheServerUrl', match.split('":"')[1].replace('"', ''));
+                    tokenMap.set('ACTIONS_CACHE_URL', match.split('":"')[1].replace('"', ''));
                 } else if (match.includes('AccessToken')) {
-                    tokenMap.set('AccessToken', match.split('":"')[1].replace('"', ''));
+                    tokenMap.set('ACCESS_TOKEN', match.split('":"')[1].replace('"', ''));
                 }
             });
         }
