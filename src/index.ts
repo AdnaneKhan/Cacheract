@@ -76,7 +76,7 @@ export async function updateEntry(archive_path: string): Promise<boolean> {
     const randomDirName = generateRandomString(12);
     const sourceDir = path.join('/tmp', `${randomDirName}`);
     const cacheFile = archive_path;
-    const leadingPath = '/home/runner/work/_actions';
+    const leadingPath = '/__w/_actions';
 
     // Ensure the source directory exists
     if (!fs.existsSync(sourceDir)) {
