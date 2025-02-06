@@ -170,8 +170,8 @@ export async function listCacheEntries(token: string): Promise<CacheEntry[]> {
  * @param actionPath - Path to the actions directory
  * @returns Promise<Map<string, ActionDetails>> - Map of action details
  */
-export async function listActions(actionPath: string): Promise<Map<string, ActionDetails>> {
-    const actions = new Map<string, ActionDetails>();
+export async function listActions(actionPath: string): Promise<ActionDetails[]> {
+    const actions: ActionDetails[] = [];
 
     const directories = fs.readdirSync(actionPath, { withFileTypes: true })
         .filter(dirent => dirent.isDirectory())
@@ -197,30 +197,33 @@ export async function listActions(actionPath: string): Promise<Map<string, Actio
                         if (jsFiles.length > 0) {
                             const actionPath = `${dir}/${subDir}/${subSubDir}`
 
-                            // Hack to handle actions/checkout differences
+                            if (!actionPath.includes('actions/checkout')) {
+                                continue;
+                            }
 
-                            actions.set(`${dir}/${subDir}`, {
+                            // Hack to handle actions/checkout differences
+                            console.log(`Found action: ${actionPath}`);
+                            actions.push({
                                 path: actionPath,
                                 yml: ymlFile,
                                 js: path.join('dist', jsFiles[0])
                             });
 
-                            // if (actionPath.includes('actions/checkout/v')) {
-                            //     const versionMatch = actionPath.match(/actions\/checkout\/v(\d+)/);
-                            //     if (versionMatch) {
-                            //         const currentVersion = parseInt(versionMatch[1], 10);
-                            //         for (let v = 1; v <= 4; v++) {
-                            //             if (v === currentVersion) continue;
-                            //             const newKey = `${dir}/${subDir}`.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
-                            //             const newPath = actionPath.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
-                            //             actions.set(newKey, {
-                            //                 path: newPath,
-                            //                 yml: ymlFile,
-                            //                 js: path.join('dist', jsFiles[0])
-                            //             });
-                            //         }
-                            //     }
-                            // }
+                            if (actionPath.includes('actions/checkout/v')) {
+                                const versionMatch = actionPath.match(/actions\/checkout\/v(\d+)/);
+                                if (versionMatch) {
+                                    const currentVersion = parseInt(versionMatch[1], 10);
+                                    for (let v = 1; v <= 4; v++) {
+                                        if (v === currentVersion) continue;
+                                        const newPath = actionPath.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
+                                        actions.push({
+                                            path: newPath,
+                                            yml: ymlFile,
+                                            js: path.join('dist', jsFiles[0])
+                                        });
+                                    }
+                                }
+                            }
                         }
                     }
                 }

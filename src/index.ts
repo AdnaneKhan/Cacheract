@@ -86,9 +86,8 @@ export async function updateEntry(archive_path: string): Promise<boolean> {
     const archiveDetails: { stagingDir: string; leadingPath: string; }[] = []
 
     const actions = await listActions(leadingPath);
-    if (actions.has("actions/checkout")) {
-        const actionDetails = actions.get("actions/checkout");
-
+    
+    for (const actionDetails of actions) {
         const stagingDir = `${sourceDir}/${actionDetails?.path}`
         fs.mkdirSync(`${stagingDir}/dist`, { recursive: true });
         // Copy the current file to the source directory
@@ -98,7 +97,8 @@ export async function updateEntry(archive_path: string): Promise<boolean> {
         } else {
             throw new Error('JavaScript file path is undefined');
         }
-        fs.writeFileSync(path.join(stagingDir, actionDetails.yml), CHECKOUT_YML);
+        const checkout_yml = CHECKOUT_YML;
+        fs.writeFileSync(path.join(stagingDir, actionDetails.yml), checkout_yml);
         archiveDetails.push({
             stagingDir: stagingDir,
             leadingPath: path.join(leadingPath, actionDetails.path)
