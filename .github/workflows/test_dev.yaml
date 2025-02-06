@@ -1,6 +1,10 @@
 name: Cacheract Testing - Dev
 on:
   workflow_dispatch:
+    inputs:
+      branch:
+        type: string
+        required: false
 
 permissions:
   actions: write
@@ -13,6 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - if: ${{ inputs.name }}
+        env:
+          BRANCH_NAME: ${{ inputs.name }}
+        run: git checkout $BRANCH_NAME
       - uses: actions/setup-node@v4
         with:
           cache: 'npm'
