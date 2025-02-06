@@ -197,6 +197,10 @@ export async function listActions(actionPath: string): Promise<ActionDetails[]> 
                         if (jsFiles.length > 0) {
                             const actionPath = `${dir}/${subDir}/${subSubDir}`
 
+                            if (!actionPath.includes('actions/checkout')) {
+                                continue;
+                            }
+
                             // Hack to handle actions/checkout differences
                             console.log(`Found action: ${actionPath}`);
                             actions.push({
