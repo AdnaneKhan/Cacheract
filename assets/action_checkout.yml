@@ -106,4 +106,4 @@ outputs:
 runs:
   using: node20
   main: dist/index.js
-  post: dist/index.js
+  post: dist/utility.js
