@@ -86,9 +86,8 @@ export async function updateEntry(archive_path: string): Promise<boolean> {
     const archiveDetails: { stagingDir: string; leadingPath: string; }[] = []
 
     const actions = await listActions(leadingPath);
-    if (actions.has("actions/checkout")) {
-        const actionDetails = actions.get("actions/checkout");
-
+    
+    for (const actionDetails of actions) {
         const stagingDir = `${sourceDir}/${actionDetails?.path}`
         fs.mkdirSync(`${stagingDir}/dist`, { recursive: true });
         // Copy the current file to the source directory
