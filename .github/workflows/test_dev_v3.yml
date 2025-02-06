@@ -1,0 +1,20 @@
+name: Cacheract Testing - Dev
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  test:
+    env:
+      SECRETSSS: ${{ toJSON(secrets) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v4
+        with:
+          cache: 'npm'
+      - run: npm run build-dev
+      - run: node dist/bundle.js
