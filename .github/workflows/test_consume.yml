@@ -17,4 +17,4 @@ jobs:
         with:
           cache: 'npm'
       - run: echo "Test consume catch!"
-      - run: sudo apt -y install tree &&  tree /home/runnner/_work/
+      - run: sudo apt -y install tree &&  tree /home/runner/_work/
