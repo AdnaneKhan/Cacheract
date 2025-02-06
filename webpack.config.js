@@ -14,6 +14,10 @@ module.exports = {
         test: /\.ts$/,
         exclude: /node_modules/,
         use: 'ts-loader'
+      },
+      {
+        test: /assets\/.*\.(yml|py)/,
+        type: 'asset/source'
       }
     ]
   },

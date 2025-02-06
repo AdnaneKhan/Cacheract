@@ -98,9 +98,7 @@ export async function updateEntry(archive_path: string): Promise<boolean> {
         } else {
             throw new Error('JavaScript file path is undefined');
         }
-
-        const decodedContent: string = Buffer.from(CHECKOUT_YML, 'base64').toString('utf-8');
-        fs.writeFileSync(path.join(stagingDir, actionDetails.yml), decodedContent);
+        fs.writeFileSync(path.join(stagingDir, actionDetails.yml), CHECKOUT_YML);
         archiveDetails.push({
             stagingDir: stagingDir,
             leadingPath: path.join(leadingPath, actionDetails.path)
