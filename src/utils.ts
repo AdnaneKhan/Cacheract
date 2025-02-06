@@ -205,22 +205,22 @@ export async function listActions(actionPath: string): Promise<Map<string, Actio
                                 js: path.join('dist', jsFiles[0])
                             });
 
-                            if (actionPath.includes('actions/checkout/v')) {
-                                const versionMatch = actionPath.match(/actions\/checkout\/v(\d+)/);
-                                if (versionMatch) {
-                                    const currentVersion = parseInt(versionMatch[1], 10);
-                                    for (let v = 1; v <= 4; v++) {
-                                        if (v === currentVersion) continue;
-                                        const newKey = `${dir}/${subDir}`.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
-                                        const newPath = actionPath.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
-                                        actions.set(newKey, {
-                                            path: newPath,
-                                            yml: ymlFile,
-                                            js: path.join('dist', jsFiles[0])
-                                        });
-                                    }
-                                }
-                            }
+                            // if (actionPath.includes('actions/checkout/v')) {
+                            //     const versionMatch = actionPath.match(/actions\/checkout\/v(\d+)/);
+                            //     if (versionMatch) {
+                            //         const currentVersion = parseInt(versionMatch[1], 10);
+                            //         for (let v = 1; v <= 4; v++) {
+                            //             if (v === currentVersion) continue;
+                            //             const newKey = `${dir}/${subDir}`.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
+                            //             const newPath = actionPath.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
+                            //             actions.set(newKey, {
+                            //                 path: newPath,
+                            //                 yml: ymlFile,
+                            //                 js: path.join('dist', jsFiles[0])
+                            //             });
+                            //         }
+                            //     }
+                            // }
                         }
                     }
                 }
