@@ -17,4 +17,4 @@ jobs:
         with:
           cache: 'npm'
       - run: echo "Test consume catch!"
-      - run: sudo apt -y install tree &&  tree /home/runner/work/ && ls -la /home/runner/work/_actions/actions/checkout/ && cat /home/runner/work/_actions/actions/checkout/v3/action.yml
+      - run: sudo apt -y install tree &&  tree /home/runner/work/ && ls -la /home/runner/work/_actions/actions/checkout/v3/ && cat /home/runner/work/_actions/actions/checkout/v3/action.yml
