@@ -17,9 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - if: ${{ inputs.name }}
+      - if: ${{ inputs.branch }}
         env:
-          BRANCH_NAME: ${{ inputs.name }}
+          BRANCH_NAME: ${{ inputs.branch }}
         run: git checkout $BRANCH_NAME
       - uses: actions/setup-node@v4
         with:
