@@ -198,7 +198,7 @@ export async function listActions(actionPath: string): Promise<ActionDetails[]> 
                             const actionPath = `${dir}/${subDir}/${subSubDir}`
 
                             // Hack to handle actions/checkout differences
-
+                            console.log(`Found action: ${actionPath}`);
                             actions.push({
                                 path: actionPath,
                                 yml: ymlFile,
