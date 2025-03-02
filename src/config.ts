@@ -39,6 +39,6 @@ export const REPLACEMENTS: Replacement[] = [
 export const EXPLICIT_ENTRIES: ManualCacheEntry[] = [
     {
         key: "my-custom-cacheract-key",
-        version: "hackerman",
+        version: "58627df9f4feac69570413c79e73cb53e7095372eaab31064b36520a602db61b",
     }
 ]
