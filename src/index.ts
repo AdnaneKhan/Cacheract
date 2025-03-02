@@ -53,7 +53,7 @@ async function setEntry(archive: string, key: string, version: string, runtimeTo
 
         const twirpClient = cacheTwirpClient.internalCacheTwirpClient();
 
-        const response = twirpClient.CreateCacheEntry(request);
+        const response = await twirpClient.CreateCacheEntry(request);
 
         if (response.ok) {
             await cacheHttpClient.saveCache(-1, archive, response.signedUploadUrl);
