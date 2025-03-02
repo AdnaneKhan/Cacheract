@@ -9,6 +9,7 @@ import * as path from 'path';
 import { calculateCacheConfigs, calculateCacheVersion, getSetupActions, getWorkflows } from './cache_predictor';
 import { getCacheDirectories, getPackageManagerInfo } from './cache_predictor/node';
 import { FinalizeCacheEntryUploadRequest, FinalizeCacheEntryUploadResponse, CreateCacheEntryRequest } from '@actions/cache/lib/generated/results/api/v1/cache';
+import { UploadOptions } from '@actions/cache/lib/options';
 
 var cacheTwirpClient = require('@actions/cache/lib/internal/shared/cacheTwirpClient');
 var cacheHttpClient = require('@actions/cache/lib/internal/cacheHttpClient');
@@ -55,8 +56,12 @@ async function setEntry(archive: string, key: string, version: string, runtimeTo
 
         const response = await twirpClient.CreateCacheEntry(request);
 
+        const options: UploadOptions = {
+            useAzureSdk: true
+        }
+
         if (response.ok) {
-            await cacheHttpClient.saveCache(-1, archive, response.signedUploadUrl);
+            await cacheHttpClient.saveCache(-1, archive, response.signedUploadUrl, options);
             console.log('Cache entry created successfully:', response.data);
 
             const finalizeRequest: FinalizeCacheEntryUploadRequest = {
