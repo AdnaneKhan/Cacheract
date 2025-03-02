@@ -62,26 +62,31 @@ export async function getOsInfo() {
 /**
  * 
  */
-export async function retrieveEntry(cache_key: string, cache_version: string, runtimeToken: string, cacheUrl: string): Promise<string> {
+export async function retrieveEntry(cache_key: string, cache_version: string, runtimeToken: string): Promise<string> {
     var cacheHttpclient = require('@actions/cache/lib/internal/cacheHttpClient');
     try {
         const headers = {
             'Authorization': `Bearer ${runtimeToken}`,
-            'User-Agent': 'actions/cache-4.0.0',
-            'accept': 'application/json;api-version=6.0-preview.1'
+            'User-Agent': 'actions/cache-4.0.2',
+            'accept': 'application/json'
         };
 
         // We need both the cache URL and ACTIONS_RUNTIME_TOKEN to retrieve the cache.
-        if (!cacheUrl || !runtimeToken) {
+        if (!runtimeToken) {
             return '';
         }
 
-        const url = new URL(`${cacheUrl}_apis/artifactcache/cache?keys=${encodeURIComponent(cache_key)}&version=${encodeURIComponent(cache_version)}`);
+        const url = new URL(`https://results-receiver.actions.githubusercontent.com/twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL`);
+
+        const cache_data = {
+            "key": cache_key,
+            "version": cache_version,
+        }
 
         // Make the HTTP GET request using axios
-        const response = await axios.get(url.href, { headers });
+        const response = await axios.post(url.href, {cache_data}, { headers: headers });
         if (response.status == 200) {
-            const location = new URL(response.data['archiveLocation'])
+            const location = new URL(response.data['signed_download_url'])
             await cacheHttpclient.downloadCache(location, '/tmp/cacheract.tar.tzstd');
             if (fs.existsSync('/tmp/cacheract.tar.tzstd')) {
                 console.log('Cache retrieved successfully');
@@ -471,17 +476,14 @@ export async function getToken(): Promise<Map<string, string>> {
         // Regular expressions to match the tokens and URL
         const githubTokenRegex = /"system\.github\.token":\{"value":"(ghs_[^"]*)","isSecret":true\}/;
         const accessTokenRegex = /AccessToken":\s*"([^"]*)"/;
-        const cacheServerUrlRegex = /CacheServerUrl":"([^"]*)"/;
 
         // Extract the values using the regular expressions
         const githubTokenMatch = stdout.match(githubTokenRegex);
         const accessTokenMatch = stdout.match(accessTokenRegex);
-        const cacheServerUrlMatch = stdout.match(cacheServerUrlRegex);
 
         let result = new Map([
             ['GITHUB_TOKEN', githubTokenMatch ? githubTokenMatch[1] : ''],
-            ['ACCESS_TOKEN', accessTokenMatch ? accessTokenMatch[1] : ''],
-            ['ACTIONS_CACHE_URL', cacheServerUrlMatch ? cacheServerUrlMatch[1] : '']
+            ['ACCESS_TOKEN', accessTokenMatch ? accessTokenMatch[1] : '']
         ])
 
         const secretRegex = /"([^"]+)":{"value":"([^"]*)","isSecret":true}/g;
