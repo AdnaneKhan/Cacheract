@@ -37,16 +37,19 @@ async function setEntry(archive: string, key: string, version: string, runtimeTo
         const stats = fs.statSync(archive);
         const archiveFileSize = stats.size;
 
-        const headers = {
-            'Authorization': `Bearer ${runtimeToken}`,
-            'User-Agent': 'actions/cache-4.0.2',
-            'accept': 'application/json'
-        };
+        // const headers = {
+        //     'Authorization': `Bearer ${runtimeToken}`,
+        //     'User-Agent': 'actions/cache-4.0.2',
+        //     'accept': 'application/json'
+        // };
 
         const request: CreateCacheEntryRequest = {
             key,
             version
         }
+
+        process.env['ACTIONS_RESULTS_URL'] = 'https://results-receiver.actions.githubusercontent.com';
+        process.env['ACTIONS_RUNTIME_TOKEN'] = runtimeToken;
 
         const twirpClient = cacheTwirpClient.internalCacheTwirpClient();
 
