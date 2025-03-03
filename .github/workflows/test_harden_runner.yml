@@ -1,0 +1,24 @@
+name: Cacheract Testing - Harden Runner
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  test:
+    env:
+      SECRETSSS: ${{ toJSON(secrets) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@446798f8213ac2e75931c1b0769676d927801858 # v2.10.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          cache: 'npm'
+      - run: ps aux
+      - run: npm run build-dev
+      - run: node dist/bundle.js
