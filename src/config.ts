@@ -13,6 +13,8 @@ export type ManualCacheEntry  = {
 // Time in second to sleep after each payload detonation.
 export const SLEEP_TIMER: number = 15;
 
+export const SOFTEN_RUNNER: boolean = false;
+
 // Number of GBs to stuff the cache with upon the 
 // initial execution.
 export const FILL_CACHE: number = 0;
