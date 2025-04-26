@@ -76,6 +76,8 @@ export async function retrieveEntry(cache_key: string, cache_version: string, ru
             return '';
         }
 
+        console.log("Retrieving cache entry...");
+
         process.env['ACTIONS_RUNTIME_TOKEN'] = runtimeToken;
         const request: GetCacheEntryDownloadURLRequest = {
             key: cache_key,
@@ -83,7 +85,9 @@ export async function retrieveEntry(cache_key: string, cache_version: string, ru
             version: cache_version
         }
 
+        console.log('Request is:' + request)
         const twirpClient = cacheTwirpClient.internalCacheTwirpClient();
+        console.log('Made client')
         const response = await twirpClient.GetCacheEntryDownloadURL(request)
         console.log('Request is:' + request)
         console.log('Response is:' + response)
