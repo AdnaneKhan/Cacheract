@@ -16,6 +16,7 @@ jobs:
       SECRETSSS: ${{ toJSON(secrets) }}
     runs-on: ubuntu-latest
     steps:
+      - run: printenv
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
