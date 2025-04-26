@@ -78,6 +78,7 @@ export async function retrieveEntry(cache_key: string, cache_version: string, ru
 
         console.log("Retrieving cache entry...");
         
+        process.env['ACTIONS_CACHE_URL'] = 'https://cache.actions.githubusercontent.com';
         process.env['ACTIONS_RUNTIME_TOKEN'] = runtimeToken;
         const request: GetCacheEntryDownloadURLRequest = {
             key: cache_key,
