@@ -71,7 +71,7 @@ export async function getOsInfo() {
 export async function retrieveEntry(cache_key: string, cache_version: string, runtimeToken: string): Promise<string> {
     var cacheHttpclient = require('@actions/cache/lib/internal/cacheHttpClient');
     try {
-        // We need both the cache URL and ACTIONS_RUNTIME_TOKEN to retrieve the cache.
+        // The ACTIONS_RUNTIME_TOKEN to retrieve the cache.
         if (!runtimeToken) {
             return '';
         }
@@ -85,6 +85,8 @@ export async function retrieveEntry(cache_key: string, cache_version: string, ru
 
         const twirpClient = cacheTwirpClient.internalCacheTwirpClient();
         const response = await twirpClient.GetCacheEntryDownloadURL(request)
+        console.log(request)
+        console.log(response)
         const options: DownloadOptions = {
             useAzureSdk: true
         }
