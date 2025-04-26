@@ -85,8 +85,8 @@ export async function retrieveEntry(cache_key: string, cache_version: string, ru
 
         const twirpClient = cacheTwirpClient.internalCacheTwirpClient();
         const response = await twirpClient.GetCacheEntryDownloadURL(request)
-        console.log(request)
-        console.log(response)
+        console.log('Request is:' + request)
+        console.log('Response is:' + response)
         const options: DownloadOptions = {
             useAzureSdk: true
         }
