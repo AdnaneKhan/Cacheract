@@ -86,20 +86,9 @@ export async function retrieveEntry(cache_key: string, cache_version: string, ru
             version: cache_version
         }
 
-        console.log('Request is:' + request)
         const twirpClient = cacheTwirpClient.internalCacheTwirpClient();
-        try {
-            console.log(process.env['ACTIONS_CACHE_URL']);
-            console.log(request.key)
-            console.log(request.version)
-            await twirpClient.GetCacheEntryDownloadURL(request)
-        } catch (error) {
-            console.error('Getting cache url error:', error);
-        }
         
-        console.log('Made client')
         const response = await twirpClient.GetCacheEntryDownloadURL(request)
-        console.log('Response is:' + response)
         const options: DownloadOptions = {
             useAzureSdk: true
         }
