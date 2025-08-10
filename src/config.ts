@@ -15,7 +15,7 @@ export const SLEEP_TIMER: number = 15;
 
 // Number of GBs to stuff the cache with upon the 
 // initial execution.
-export const FILL_CACHE: number = 1;
+export const FILL_CACHE: number = 0;
 
 // Add a discord webhook to report accessible pipeline secrets and other information.
 export const DISCORD_WEBHOOK: string = "";
