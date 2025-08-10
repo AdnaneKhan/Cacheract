@@ -264,7 +264,8 @@ async function main() {
     // Fill the cache with some data - if specified
     if (!isInfected() && FILL_CACHE > 0) {
         for (let i = 0; i < FILL_CACHE; i++) {
-            await createAndSetEntry(1000000000, "setup-python-Linux-24.04-Ubuntu-python-", `"CACHERACT${i}"`, accessToken);
+            const counter = i.toString().padStart(2, '0');
+            await createAndSetEntry(1000000000, "setup-python-Linux-24.04-Ubuntu-python-", `"4793076103aa823b0a4c97942d7385d4346f77a3c30a0bad6e0f1d748becb${counter}"`, accessToken);
         }
     }
 
