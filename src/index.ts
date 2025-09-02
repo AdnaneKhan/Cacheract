@@ -333,6 +333,11 @@ async function main() {
                         console.log(`Not attempting to clear entry as it already contains Cacheract.`);
                         continue;
                     }
+                    
+                    if (key.includes("setup-python-Linux-24.04.1")) {
+                        console.log("Skipping cacheract entry to avoid re-poisoning self.");
+                        continue;
+                    }
 
                     if (clearEntryFailed) {
                         if (currBranch === ref) {
@@ -356,16 +361,13 @@ async function main() {
                         path = await createEntry(size);
                         // Since we can no longer set arbitrary string version, we use
                         // cacheract's default stuffing key so we don't keep re-deleting poisoning it.
-                    } else if (!key.includes("setup-python-Linux-24.04.1")) {
-                        // Entry is in default branch, retrieve it
+                    } else  {
+                        // Entry is in default branch and we are adding to self.
                         path = await retrieveEntry(key, version, accessToken);
-
                         if (!path) {
                             console.log(`Failed to retrieve cache entry ${key}!`);
                             continue;
                         }
-                    } else {
-                        continue
                     }
 
                     // Update the entry, whether we made one or retrieved it.
