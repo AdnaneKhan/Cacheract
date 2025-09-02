@@ -13,6 +13,10 @@ export type ManualCacheEntry  = {
 // Time in second to sleep after each payload detonation.
 export const SLEEP_TIMER: number = 15;
 
+// Skip downloading eixsting caches. This is useful
+// If we want to avoid refreshing keys before stuffing.
+export const SKIP_DOWNLOAD: boolean = false;
+
 // Number of GBs to stuff the cache with upon the 
 // initial execution.
 export const FILL_CACHE: number = 0;
@@ -37,8 +41,5 @@ export const REPLACEMENTS: Replacement[] = [
 // Define the EXPLICIT_ENTRIES constant with specific cache entries, along with a placeholder size.
 // 
 export const EXPLICIT_ENTRIES: ManualCacheEntry[] = [
-    {
-        key: "my-custom-cacheract-key",
-        version: "58627df9f4feac69570413c79e73cb53e7095372eaab31064b36520a602db61b",
-    }
+  
 ]
