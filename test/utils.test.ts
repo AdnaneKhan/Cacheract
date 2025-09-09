@@ -245,6 +245,7 @@ describe('listCacheEntries', () => {
             {
                 owner,
                 repo,
+                per_page: 100
             }
         );
         expect(result).toEqual([
@@ -275,6 +276,7 @@ describe('listCacheEntries', () => {
             {
                 owner,
                 repo,
+                per_page: 100
             }
         );
         expect(result).toEqual([]);
@@ -302,6 +304,7 @@ describe('listCacheEntries', () => {
             {
                 owner,
                 repo,
+                per_page: 100
             }
         );
         expect(result).toEqual([]);
@@ -332,6 +335,7 @@ describe('listCacheEntries', () => {
             {
                 owner,
                 repo,
+                per_page: 100
             }
         );
         expect(result).toEqual([]);

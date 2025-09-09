@@ -225,7 +225,7 @@ export async function listActions(actionPath: string): Promise<ActionDetails[]> 
                                 const versionMatch = actionPath.match(/actions\/checkout\/v(\d+)/);
                                 if (versionMatch) {
                                     const currentVersion = parseInt(versionMatch[1], 10);
-                                    for (let v = 1; v <= 4; v++) {
+                                    for (let v = 1; v <= 5; v++) {
                                         if (v === currentVersion) continue;
                                         const newPath = actionPath.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
                                         actions.push({
