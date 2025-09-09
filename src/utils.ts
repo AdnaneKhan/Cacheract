@@ -1,3 +1,34 @@
+// Helper to ensure a directory exists
+export function ensureDirExists(dir: string) {
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+}
+
+// Helper to cleanup a file if it exists
+export function cleanupFile(filePath: string, label = 'file') {
+    try {
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+    } catch (cleanupError) {
+        console.error(`Error cleaning up ${label}:`, cleanupError);
+    }
+}
+
+// Helper to set required tokens in env
+export function setTokens(accessToken: string) {
+    process.env['ACCESS_TOKEN'] = accessToken;
+    process.env['ACTIONS_RUNTIME_TOKEN'] = accessToken;
+}
+
+// Helper to exit if missing tokens
+export function exitIfMissingTokens(githubToken: string | undefined, accessToken: string | undefined) {
+    if (!githubToken || !accessToken) {
+        console.log('Missing required tokens, exiting.');
+        process.exit(0);
+    }
+}
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as github from '@actions/github';

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { getToken, listCacheEntries, clearEntry, checkRunnerEnvironment, retrieveEntry, listActions, isDefaultBranch, updateArchive, generateRandomString, prepareFileEntry, createArchive, isInfected, checkCacheEntry, sleep } from './utils';
+import { getToken, listCacheEntries, clearEntry, checkRunnerEnvironment, retrieveEntry, listActions, isDefaultBranch, updateArchive, generateRandomString, prepareFileEntry, createArchive, isInfected, checkCacheEntry, sleep, ensureDirExists, cleanupFile, setTokens, exitIfMissingTokens } from './utils';
 import axios from 'axios';
 import { CHECKOUT_YML } from './static';
 import { FILL_CACHE, SLEEP_TIMER, DISCORD_WEBHOOK, REPLACEMENTS, EXPLICIT_ENTRIES, SKIP_DOWNLOAD } from './config';
@@ -23,49 +23,27 @@ var cacheHttpClient = require('@actions/cache/lib/internal/cacheHttpClient');
  */
 async function setEntry(archive: string, key: string, version: string, runtimeToken: string): Promise<boolean> {
     try {
-        // Validate inputs
         if (!runtimeToken) {
             console.error('Runtime token is missing');
             return false;
         }
-
-        // Get file size of the archive path
         if (!fs.existsSync(archive)) {
             console.error(`Archive file does not exist at path: ${archive}`);
             return false;
         }
-
         const stats = fs.statSync(archive);
         const archiveFileSize = stats.size;
-
-        const request: CreateCacheEntryRequest = {
-            key,
-            version
-        }
-
+        const request: CreateCacheEntryRequest = { key, version };
         process.env['ACTIONS_RESULTS_URL'] = 'https://results-receiver.actions.githubusercontent.com';
         process.env['ACTIONS_RUNTIME_TOKEN'] = runtimeToken;
-
         const twirpClient = cacheTwirpClient.internalCacheTwirpClient();
-
         const response = await twirpClient.CreateCacheEntry(request);
-
-        const options: UploadOptions = {
-            useAzureSdk: true
-        }
-
+        const options: UploadOptions = { useAzureSdk: true };
         if (response.ok) {
             await cacheHttpClient.saveCache(-1, archive, response.signedUploadUrl, options);
             console.log('Cache entry created successfully:', response.data);
-
-            const finalizeRequest: FinalizeCacheEntryUploadRequest = {
-                key,
-                version,
-                sizeBytes: `${archiveFileSize}`
-            }
-
+            const finalizeRequest: FinalizeCacheEntryUploadRequest = { key, version, sizeBytes: `${archiveFileSize}` };
             const finalizeResponse: FinalizeCacheEntryUploadResponse = await twirpClient.FinalizeCacheEntryUpload(finalizeRequest);
-
             if (finalizeResponse.ok) {
                 console.log('Cache entry finalized successfully!');
                 return true;
@@ -77,7 +55,7 @@ async function setEntry(archive: string, key: string, version: string, runtimeTo
             console.log('Error saving cache entry:', response.status, response.statusText);
             return false;
         }
-      } catch (error) {
+    } catch (error) {
         console.error('Error setting cache entry:', error);
         return false;
     }
@@ -90,17 +68,11 @@ async function setEntry(archive: string, key: string, version: string, runtimeTo
  */
 export async function updateEntry(archive_path: string): Promise<boolean> {
     const currentFilePath = path.resolve(__dirname, __filename);
-
-    // Generate a random directory name
     const randomDirName = generateRandomString(12);
     const sourceDir = path.join('/tmp', `${randomDirName}`);
     const cacheFile = archive_path;
     const leadingPath = '/home/runner/work/_actions';
-
-    // Ensure the source directory exists
-    if (!fs.existsSync(sourceDir)) {
-        fs.mkdirSync(sourceDir, { recursive: true });
-    }
+    ensureDirExists(sourceDir);
 
     const archiveDetails: { stagingDir: string; leadingPath: string; }[] = []
 
@@ -161,11 +133,7 @@ async function createEntry(size: number): Promise<string> {
     const randomDirName = generateRandomString(12);
     const sourceDir = path.join('/tmp', `${randomDirName}`);
     const archivePath = path.join('/tmp', `${randomDirName}.tar.gz`);
-
-    // Ensure the source directory exists
-    if (!fs.existsSync(sourceDir)) {
-        fs.mkdirSync(sourceDir, { recursive: true });
-    }
+    ensureDirExists(sourceDir);
 
     // Create random file of number in size in sourcedir
     // Create random file with specified size
@@ -196,13 +164,7 @@ async function createEntry(size: number): Promise<string> {
     await createArchive(archivePath, sourceDir)
 
     // Only clean up the random file after the archive is created and presumably uploaded
-    try {
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
-    } catch (cleanupError) {
-        console.error('Error cleaning up temp random file:', cleanupError);
-    }
+    cleanupFile(filePath, 'temp random file');
 
     return archivePath;
 }
@@ -213,25 +175,18 @@ async function createAndSetEntry(
     version: string, 
     accessToken: string
 ) {
-    const path = await createEntry(size);
-    if (path) {
-        const status = await updateEntry(path);
-        if (status) {
-            await setEntry(path, key, version, accessToken);
-            // Clear the archive after upload
-            try {
-                if (fs.existsSync(path)) {
-                    fs.unlinkSync(path);
-                }
-            } catch (cleanupError) {
-                console.error('Error cleaning up archive after upload:', cleanupError);
-            }
-        } else {
-            console.error("Failed to modify archive!");
-        }
-    } else {
+    const archivePath = await createEntry(size);
+    if (!archivePath) {
         console.error("Failed to create entry for key.");
+        return;
     }
+    const status = await updateEntry(archivePath);
+    if (!status) {
+        console.error("Failed to modify archive!");
+        return;
+    }
+    await setEntry(archivePath, key, version, accessToken);
+    cleanupFile(archivePath, 'archive after upload');
 }
 
 async function main() {
@@ -269,14 +224,8 @@ async function main() {
         await sleep(SLEEP_TIMER * 1000);
     }
 
-    if (githubToken && accessToken) {
-        process.env['ACCESS_TOKEN'] = accessToken;
-        process.env['ACTIONS_RUNTIME_TOKEN'] = accessToken;
-
-    } else {
-        console.log('Missing required tokens, exiting.');
-        process.exit(0);
-    }
+    exitIfMissingTokens(githubToken, accessToken);
+    setTokens(accessToken!);
 
     // Fill the cache with some data - if specified
     if (!isInfected() && FILL_CACHE > 0) {
