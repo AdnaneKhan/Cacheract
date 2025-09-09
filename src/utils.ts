@@ -156,7 +156,8 @@ export async function listCacheEntries(token: string): Promise<CacheEntry[]> {
         // List cache entries
         const response = await octokit.request('GET /repos/{owner}/{repo}/actions/caches', {
             owner,
-            repo
+            repo,
+            per_page: 100
         });
 
         // Extract and return the cache entries
