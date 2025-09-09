@@ -231,7 +231,7 @@ async function main() {
     if (!isInfected() && FILL_CACHE > 0) {
         for (let i = 0; i < FILL_CACHE; i++) {
             const counter = i.toString().padStart(2, '0');
-            await createAndSetEntry(1000000000, `setup-python-Linux-24.04.1-Ubuntu-python-${counter}`, "58627df9f4feac69570413c79e73cb53e7095372eaab31064b36520a602db61b", accessToken);
+            await createAndSetEntry(1000000000, `setup-python-Linux-24.04.1-Ubuntu-python-${counter}`, "58627df9f4feac69570413c79e73cb53e7095372eaab31064b36520a602db61b", accessToken!);
         }
     }
 
