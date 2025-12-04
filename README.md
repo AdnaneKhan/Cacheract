@@ -2,14 +2,14 @@
 😈 Cacheract 🧊
 </h1>
 
-<h2 align="center">GitHub Actions Cache Native Malware</h2>
+<h2 align="center">GitHub Actions Cache Native Tool</h2>
 
 > [!WARNING]
 > This software is for educational purposes only. The author is **not** liable for any harm or damage resulting from its unauthorized use.
 
 ## What is Cacheract?
 
-Cacheract is a novel proof-of-concept for cache-native malware targeting ephemeral GitHub Actions build pipelines. The core idea behind Cacheract is that a poisoned GitHub Actions cache provides a direct path to arbitrary code execution and file modification within victim pipelines.
+Cacheract is a novel proof-of-concept for a tool targeting ephemeral GitHub Actions build pipelines. The core idea behind Cacheract is that a poisoned GitHub Actions cache provides a direct path to arbitrary code execution and file modification within victim pipelines.
 
 Cacheract enhances this approach by opportunistically poisoning new cache entries to persist within a build pipeline. Its default implementation does not modify build outputs but instead reports pipeline telemetry and secrets to a webhook. Offensive Security practitioners can take advantage of Cacheract to simulate a compromised dependency in an upstream package. Typically, supply chain attacks target end consumers. This can be workstations or servers. However, Cacheract is designed to target Actions pipelines exclusively - if it lands on a machine that is not a GitHub Actions runner, it will exit silently.
 
