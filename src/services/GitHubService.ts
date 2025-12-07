@@ -138,4 +138,28 @@ export class GitHubService {
             return false;
         }
     }
+    async getDefaultBranch(token: string): Promise<string> {
+        const githubRepository = process.env.GITHUB_REPOSITORY;
+
+        if (!githubRepository) {
+            throw new Error('GITHUB_REPOSITORY environment variable is not set');
+        }
+
+        const [owner, repo] = githubRepository.split('/');
+        const url = `https://api.github.com/repos/${owner}/${repo}`;
+
+        try {
+            const response = await axios.get(url, {
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+
+            return response.data.default_branch;
+        } catch (error) {
+            console.error('Error fetching repository information:', error);
+            throw error;
+        }
+    }
 }

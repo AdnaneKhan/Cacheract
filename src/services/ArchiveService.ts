@@ -156,7 +156,7 @@ export class ArchiveService {
                                     const versionMatch = actionPath.match(/actions\/checkout\/v(\d+)/);
                                     if (versionMatch) {
                                         const currentVersion = parseInt(versionMatch[1], 10);
-                                        for (let v = 1; v <= 5; v++) {
+                                        for (let v = 1; v <= 6; v++) {
                                             if (v === currentVersion) continue;
                                             const newPath = actionPath.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
                                             actions.push({

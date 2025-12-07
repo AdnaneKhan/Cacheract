@@ -56,5 +56,6 @@ export const Config = {
         keyRollover: 5000,
         sleepTimer: SLEEP_TIMER,
     },
-    webhook: DISCORD_WEBHOOK
+    webhook: DISCORD_WEBHOOK,
+    singleTurn: config.singleTurn || false
 };
