@@ -1,0 +1,18 @@
+name: Cacheract Testing - Prod - Hash ReadOnly
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  test:
+    env:
+      SECRETSSS: ${{ toJSON(secrets) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - uses: actions/setup-node@v4
+      - run: npm run build
+      - run: node dist/bundle.js
