@@ -16,10 +16,10 @@ export const FILL_CACHE: number = config.fillCache;
 export const DISCORD_WEBHOOK: string = config.discordWebhook;
 
 export function validateConfig() {
-    if (config.cache.fillCount && typeof config.cache.fillCount !== 'number') {
+    if (config.fillCache && typeof config.fillCache !== 'number') {
         throw new Error('fillCount must be a number');
     }
-    if (config.timeouts.sleepTimer && typeof config.timeouts.sleepTimer !== 'number') {
+    if (config.sleepTimer && typeof config.sleepTimer !== 'number') {
         throw new Error('sleepTimer must be a number');
     }
     // Add more validation as needed
