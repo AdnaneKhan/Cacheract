@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { Config, validateConfig } from '../config/index';
 import { TokenService } from '../services/TokenService';
 import { ReportService } from '../services/ReportService';
@@ -86,7 +87,7 @@ export class App {
             for (let i = 0; i < Config.cache.fillCount; i++) {
                 const counter = i.toString().padStart(2, '0');
                 const key = `setup-python-Linux-24.04.1-Ubuntu-python-${counter}`;
-                const version = "58627df9f4feac69570413c79e73cb53e7095372eaab31064b36520a602db61b";
+                const version = crypto.randomBytes(32).toString('hex');
                 await this.createAndSetEntry(1000000000, key, version, accessToken, false);
             }
         }
