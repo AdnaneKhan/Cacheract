@@ -1,4 +1,4 @@
-singleTurn: false
+singleTurn: true
 sleepTimer: 0
 skipDownload: true
 fillCache: 11

