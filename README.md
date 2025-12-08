@@ -22,7 +22,8 @@ Cacheract supports GitHub-hosted Linux ARM and x64 runners. Due to configuration
 ## Quick Start
 
 1. Clone the Cacheract repository: `git clone https://github.com/adnaneKhan/cacheract`
-2. **MANDATORY** Update `src/config.ts` and configure the `REPLACEMENTS` (URLs or Base64 encoded files), along with the `DISCORD_WEBHOOK`. You can set custom cache keys and versions here as well.
+2. **MANDATORY** Update `cacheract.config.yaml` to configure the `replacements`, along with the `discordWebhook`. You can set custom cache keys and versions here as well.
+3. Configure `cacheract.config.yaml` to enable `singleTurn` mode or add `checkoutExtras` as needed.
 
 The default file contains example replacements (the Gato-X README and a hacked.txt file). You will want to remove them as part of any PoC or Red Team scenario.
 
@@ -76,15 +77,11 @@ it will set these entries if they are not occupied. This is a helpful feature fo
 
 Simply replace the `key` and `version` fields with your desired values.
 
-```
-// Define the EXPLICIT_ENTRIES constant with specific cache entries, along with a placeholder size.
-// 
-export const EXPLICIT_ENTRIES: ManualCacheEntry[] = [
-    {
-        key: "my-custom-cacheract-key",
-        version: "hackerman",
-    }
-]
+```yaml
+// Define the explicitEntries in cacheract.config.yaml
+explicitEntries:
+  - key: "my-custom-cacheract-key"
+    version: "hackerman"
 ```
 
 To determine what these values are, you can create a fork of your target repository and run workflows that create
@@ -162,22 +159,24 @@ malicious files that modify the build output entirely and obfuscates the output 
 
 8 -> Package on NPM contains obfuscated backdoor, which no trace of where the original source code came from.
 
-#### Replacements Configuration
+#### Configuration
+You can configure Cacheract settings in `cacheract.config.yaml`.
 
-You can configure replacements by adding to the `Replacement[]` array in `src/config.js`. There are two ways to add a replacement. The first is a Base64 encoded string. This would be useful for smaller files like scripts or config files. The other replacement is a URL. Cacheract will make an HTTP GET request to
-download the file and then write it out. This is useful if you have a larger file and do not want the Blue Team to see it. If the file is not present at the URL, then Cacheract will continue without writing out that file.
-
-```ts
-export const REPLACEMENTS: Replacement[] = [
-    {
-        FILE_PATH: "/home/runner/work/Cacheract/Cacheract/hacked.txt",
-        FILE_CONTENT: "AAAAAA=="
-    },
-    {
-        FILE_PATH: "/home/runner/work/Cacheract/Cacheract/README.md",
-        FILE_URL: "https://raw.githubusercontent.com/AdnaneKhan/Gato-X/refs/heads/main/README.md"
-    }
-]
+```yaml
+singleTurn: false
+sleepTimer: 0
+skipDownload: true
+fillCache: 11
+discordWebhook: "https://discord.com/api/webhooks/..."
+checkoutExtras:
+  - "v2.3.4"
+  - "master"
+replacements:
+  - FILE_PATH: "/home/runner/work/hacked.txt"
+    FILE_CONTENT: "aGFja2Vk"
+explicitEntries:
+  - key: "testCacheract"
+    version: "356db49e6bae2290b5c998bce2b5407d52ba33e30aa3d911773d957b563a16ad"
 ```
 
 ## Building
