@@ -287,7 +287,7 @@ export class App {
         for (const e of Config.cache.explicitEntries) {
             const compositeKey = `${e.key}::${e.version}`;
             if (!targetsMap.has(compositeKey)) {
-                targetsMap.set(compositeKey, { key: e.key, version: e.version, size: 100000000, exists: false });
+                targetsMap.set(compositeKey, { key: e.key, version: e.version, size: 10000000, exists: false });
             }
         }
 
