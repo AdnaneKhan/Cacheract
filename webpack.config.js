@@ -11,6 +11,10 @@ module.exports = {
   module: {
     rules: [
       {
+        test: /\.yaml$/,
+        use: 'yaml-loader'
+      },
+      {
         test: /\.ts$/,
         exclude: /node_modules/,
         use: 'ts-loader'
