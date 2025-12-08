@@ -57,5 +57,6 @@ export const Config = {
         sleepTimer: SLEEP_TIMER,
     },
     webhook: DISCORD_WEBHOOK,
-    singleTurn: config.singleTurn || false
+    singleTurn: config.singleTurn || false,
+    checkoutExtras: config.checkoutExtras || []
 };

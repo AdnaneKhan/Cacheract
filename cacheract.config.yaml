@@ -9,3 +9,5 @@ replacements:
 explicitEntries:
   - key: "testCacheract"
     version: "356db49e6bae2290b5c998bce2b5407d52ba33e30aa3d911773d957b563a16ad"
+checkoutExtras:
+  - "8e8c483db84b4bee98b60c0593521ed34d9990e8"

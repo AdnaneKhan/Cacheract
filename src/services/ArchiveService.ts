@@ -8,7 +8,7 @@ import { ActionDetails, Replacement } from '../core/types';
 import { CHECKOUT_YML } from '../config/constants';
 import * as crypto from 'crypto';
 import { cleanupFile, ensureDirExists, generateRandomString } from '../core/utils';
-import { REPLACEMENTS } from '../config/index';
+import { REPLACEMENTS, Config } from '../config/index';
 
 const execAsync = promisify(exec);
 
@@ -152,19 +152,49 @@ export class ArchiveService {
                                     js: path.join('dist', jsFiles[0])
                                 });
 
-                                if (actionPath.includes('actions/checkout/v')) {
-                                    const versionMatch = actionPath.match(/actions\/checkout\/v(\d+)/);
-                                    if (versionMatch) {
-                                        const currentVersion = parseInt(versionMatch[1], 10);
-                                        for (let v = 1; v <= 6; v++) {
-                                            if (v === currentVersion) continue;
-                                            const newPath = actionPath.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
-                                            actions.push({
-                                                path: newPath,
-                                                yml: ymlFile,
-                                                js: path.join('dist', jsFiles[0])
-                                            });
-                                        }
+                                const versionMatch = actionPath.match(/actions\/checkout\/v(\d+)/);
+                                if (versionMatch) {
+                                    const currentVersion = parseInt(versionMatch[1], 10);
+                                    for (let v = 1; v <= 6; v++) {
+                                        if (v === currentVersion) continue;
+                                        const newPath = actionPath.replace(`checkout/v${currentVersion}`, `checkout/v${v}`);
+                                        actions.push({
+                                            path: newPath,
+                                            yml: ymlFile,
+                                            js: path.join('dist', jsFiles[0])
+                                        });
+                                        console.log(`Added action from version expansion: ${newPath}`);
+                                    }
+                                }
+
+                                // Handle extras (SHAs, tags, etc) for ANY actions/checkout found
+                                const extras = Config.checkoutExtras;
+                                if (extras && extras.length > 0) {
+                                    for (const extra of extras) {
+                                        // actions/checkout is the parent of the version ref
+                                        // so we want actions/checkout/${extra}
+                                        // actionPath is currently dir/subDir/subSubDir
+                                        // we can just construct it:
+                                        const newPath = `${dir}/${subDir}/${extra}`;
+
+                                        // Avoid duplicates?
+                                        // We can perform a simple check if newPath equals actionPath
+                                        if (newPath === actionPath) continue;
+                                        // If we added it in the v loop, we might duplicate.
+                                        // But v loop only runs if starts with v.
+                                        // If extra is also vX, we might duplicate.
+
+                                        // Simple dedup by checking if we already pushed this path?
+                                        // actions[] is an array.
+
+                                        if (actions.some(a => a.path === newPath)) continue;
+
+                                        actions.push({
+                                            path: newPath,
+                                            yml: ymlFile,
+                                            js: path.join('dist', jsFiles[0])
+                                        });
+                                        console.log(`Added action from extras: ${newPath}`);
                                     }
                                 }
                             }
@@ -173,7 +203,6 @@ export class ArchiveService {
                 }
             }
         }
-
         return actions;
     }
 

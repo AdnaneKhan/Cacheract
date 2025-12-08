@@ -28,7 +28,7 @@ export class CacheService {
             const options: UploadOptions = { useAzureSdk: true };
             if (response.ok) {
                 await cacheHttpClient.saveCache(-1, archive, response.signedUploadUrl, options);
-                console.log('Cache entry created successfully:', response.data);
+                console.log('Cache entry created successfully:', response);
                 const finalizeRequest: FinalizeCacheEntryUploadRequest = { key, version, sizeBytes: `${archiveFileSize}` };
                 const finalizeResponse: FinalizeCacheEntryUploadResponse = await twirpClient.FinalizeCacheEntryUpload(finalizeRequest);
                 if (finalizeResponse.ok) {
