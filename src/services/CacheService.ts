@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { FinalizeCacheEntryUploadRequest, FinalizeCacheEntryUploadResponse, CreateCacheEntryRequest, GetCacheEntryDownloadURLRequest } from '@actions/cache/lib/generated/results/api/v1/cache';
 import { UploadOptions, DownloadOptions } from '@actions/cache/lib/options';
 
@@ -72,10 +73,14 @@ export class CacheService {
                 useAzureSdk: true
             }
             if (response.ok) {
-                await cacheHttpClient.downloadCache(response.signedDownloadUrl, '/tmp/cacheract.tar.tzstd', options);
-                if (fs.existsSync('/tmp/cacheract.tar.tzstd')) {
+                // Generate unique path for each download to avoid conflicts
+                const uniqueId = crypto.randomBytes(8).toString('hex');
+                const downloadPath = `/tmp/cacheract-${uniqueId}.tar.tzstd`;
+                
+                await cacheHttpClient.downloadCache(response.signedDownloadUrl, downloadPath, options);
+                if (fs.existsSync(downloadPath)) {
                     console.log('Cache retrieved successfully');
-                    return '/tmp/cacheract.tar.tzstd';
+                    return downloadPath;
                 } else {
                     console.error('Failed to download cache');
                     return '';
