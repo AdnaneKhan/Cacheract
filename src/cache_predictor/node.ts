@@ -27,9 +27,12 @@
  */
 
 import * as glob from '@actions/glob';
-import * as exec from '@actions/exec';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
+
+const execFileAsync = promisify(execFile);
 
 export interface PackageManagerInfo {
     name: string;
@@ -77,20 +80,17 @@ export const getCommandOutput = async (
     toolCommand: string,
     cwd?: string
 ): Promise<string> => {
-    let { stdout, stderr, exitCode } = await exec.getExecOutput(
-        toolCommand,
-        undefined,
-        { ignoreReturnCode: true, ...(cwd && { cwd }) }
-    );
-
-    if (exitCode) {
-        stderr = !stderr.trim()
-            ? `The '${toolCommand}' command failed with exit code: ${exitCode}`
-            : stderr;
-        throw new Error(stderr);
+    const [cmd, ...args] = toolCommand.trim().split(/\s+/);
+    try {
+        const { stdout } = await execFileAsync(cmd, args, cwd ? { cwd } : {});
+        return stdout.trim();
+    } catch (err: any) {
+        const stderr = (err.stderr ?? '').toString().trim();
+        const exitCode = err.code ?? err.signal ?? 'unknown';
+        throw new Error(
+            stderr || `The '${toolCommand}' command failed with exit code: ${exitCode}`
+        );
     }
-
-    return stdout.trim();
 };
 
 export const getCommandOutputNotEmpty = async (

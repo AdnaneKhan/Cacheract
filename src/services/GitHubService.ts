@@ -1,162 +1,162 @@
-import * as github from '@actions/github';
-import axios from 'axios';
 import { CacheEntry } from '../core/types';
+
+const API_BASE = 'https://api.github.com';
+const USER_AGENT = 'cacheract';
+
+interface RepoContext {
+    owner: string;
+    repo: string;
+}
+
+interface CachesListResponse {
+    total_count: number;
+    actions_caches: Array<{
+        key: string;
+        version: string;
+        ref: string;
+        size_in_bytes: number;
+    }>;
+}
+
+interface RepoInfoResponse {
+    default_branch: string;
+}
+
+function getRepoContext(): RepoContext {
+    const githubRepository = process.env.GITHUB_REPOSITORY;
+    if (!githubRepository) {
+        throw new Error('GITHUB_REPOSITORY environment variable is not set');
+    }
+    const [owner, repo] = githubRepository.split('/');
+    return { owner, repo };
+}
+
+function buildHeaders(token: string): Record<string, string> {
+    return {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': USER_AGENT,
+    };
+}
+
+function isPermissionError(status: number): boolean {
+    return status === 401 || status === 403;
+}
 
 export class GitHubService {
     async listCacheEntries(token: string): Promise<CacheEntry[]> {
-        const octokit = github.getOctokit(token);
-        const { owner, repo } = github.context.repo;
-
+        const { owner, repo } = getRepoContext();
         try {
-            // List cache entries
-            const response = await octokit.request('GET /repos/{owner}/{repo}/actions/caches', {
-                owner,
-                repo,
-                per_page: 100
-            });
+            const url = `${API_BASE}/repos/${owner}/${repo}/actions/caches?per_page=100`;
+            const response = await fetch(url, { method: 'GET', headers: buildHeaders(token) });
 
-            // Extract and return the cache entries
-            return response.data.actions_caches.map((cache: any) => ({
+            if (!response.ok) {
+                if (isPermissionError(response.status)) {
+                    console.error('TOKEN permission issue.');
+                } else {
+                    console.error(`Error listing cache entries: ${response.status} ${response.statusText}`);
+                }
+                return [];
+            }
+
+            const data = await response.json() as CachesListResponse;
+            return data.actions_caches.map(cache => ({
                 key: cache.key,
                 version: cache.version,
                 ref: cache.ref,
-                size: cache.size_in_bytes
+                size: cache.size_in_bytes,
             }));
         } catch (error) {
-            if (error instanceof Error && error.message.includes('Resource not accessible by integration')) {
-                console.error("TOKEN permission issue.");
-            } else {
-                console.error('Error listing cache entries:', error);
-            }
+            console.error('Error listing cache entries:', error);
             return [];
         }
     }
 
     async checkCacheEntry(token: string, key: string, ref: string): Promise<boolean> {
-        const octokit = github.getOctokit(token);
-        const { owner, repo } = github.context.repo;
-
+        const { owner, repo } = getRepoContext();
         try {
-            // List cache entries filtered by key
-            const response = await octokit.request('GET /repos/{owner}/{repo}/actions/caches?key={key}&ref={ref}', {
-                owner,
-                repo,
-                key,
-                ref
-            });
+            const params = new URLSearchParams({ key, ref });
+            const url = `${API_BASE}/repos/${owner}/${repo}/actions/caches?${params}`;
+            const response = await fetch(url, { method: 'GET', headers: buildHeaders(token) });
 
-            // Check if there is at least one cache entry
-            const hasCache = response.data.actions_caches.length > 0;
-            return hasCache;
-
-        } catch (error) {
-            if (
-                error instanceof Error &&
-                error.message.includes('Resource not accessible by integration')
-            ) {
-                console.error("TOKEN permission issue.");
-            } else {
-                console.error('Error listing cache entries:', error);
+            if (!response.ok) {
+                if (isPermissionError(response.status)) {
+                    console.error('TOKEN permission issue.');
+                } else {
+                    console.error(`Error checking cache entry: ${response.status} ${response.statusText}`);
+                }
+                return false;
             }
-            return false; // Return false in case of any errors
+
+            const data = await response.json() as CachesListResponse;
+            return data.actions_caches.length > 0;
+        } catch (error) {
+            console.error('Error checking cache entry:', error);
+            return false;
         }
     }
 
     async clearEntry(key: string, version: string, auth_token: string): Promise<boolean> {
-        const octokit = github.getOctokit(auth_token);
-        const { owner, repo } = github.context.repo;
-
+        const { owner, repo } = getRepoContext();
         try {
+            const params = new URLSearchParams({ key });
+            const cachesUrl = `${API_BASE}/repos/${owner}/${repo}/actions/caches?${params}`;
 
-            // List cache entries filtered by key
-            const response1 = await octokit.request('GET /repos/{owner}/{repo}/actions/caches?key={key}', {
-                owner,
-                repo,
-                key,
-            });
-
-            if (response1.status === 200) {
-                // Check if there is at least one cache entry
-                if (response1.data.actions_caches.length === 0) {
+            const listResponse = await fetch(cachesUrl, { method: 'GET', headers: buildHeaders(auth_token) });
+            if (listResponse.ok) {
+                const data = await listResponse.json() as CachesListResponse;
+                if (data.actions_caches.length === 0) {
                     console.log(`Cache entry with key ${key} and version ${version} does not exist.`);
                     return true;
                 }
             }
 
-            const response = await octokit.request('DELETE /repos/{owner}/{repo}/actions/caches?key={key}', {
-                owner,
-                repo,
-                key
-            });
+            const deleteResponse = await fetch(cachesUrl, { method: 'DELETE', headers: buildHeaders(auth_token) });
 
-            if (response.status === 200) {
+            if (deleteResponse.status === 200 || deleteResponse.status === 204) {
                 console.log(`Cache entry with key ${key} and version ${version} deleted successfully.`);
                 return true;
-            } else if (response.status === 404) {
+            }
+            if (deleteResponse.status === 404) {
                 console.log(`Treating key ${key} and version ${version} as deleted since response was 404.`);
                 return true;
-            } else {
-                console.log(`Error deleting key ${key} and version ${version} as deleted since response was ${response.status}.`);
-                return false;
             }
+            console.log(`Error deleting key ${key} and version ${version}; response was ${deleteResponse.status}.`);
+            return false;
         } catch (error) {
-            if (error instanceof Error && (error as any).status === 404) {
-                console.log(`Treating key ${key} and version ${version} as deleted since response was 404.`);
-                return true;
-            } else {
-                console.error(`Error deleting cache entry: ${error}`);
-                return false;
-            }
+            console.error(`Error deleting cache entry: ${error}`);
+            return false;
         }
     }
 
     async isDefaultBranch(token: string): Promise<boolean> {
         const githubRef = process.env.GITHUB_REF;
-        const githubRepository = process.env.GITHUB_REPOSITORY;
-
-        if (!githubRef || !githubRepository) {
-            throw new Error('GITHUB_REF or GITHUB_REPOSITORY environment variable is not set');
+        if (!githubRef) {
+            throw new Error('GITHUB_REF environment variable is not set');
         }
-
-        const [owner, repo] = githubRepository.split('/');
         const branchName = githubRef.replace('refs/heads/', '');
-
-        const url = `https://api.github.com/repos/${owner}/${repo}`;
-
         try {
-            const response = await axios.get(url, {
-                headers: {
-                    'Authorization': `token ${token}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                }
-            });
-
-            const defaultBranch = response.data.default_branch;
+            const defaultBranch = await this.getDefaultBranch(token);
             return branchName === defaultBranch;
-        } catch (error) {
-            console.error('Error fetching repository information:', error);
+        } catch {
             return false;
         }
     }
+
     async getDefaultBranch(token: string): Promise<string> {
-        const githubRepository = process.env.GITHUB_REPOSITORY;
-
-        if (!githubRepository) {
-            throw new Error('GITHUB_REPOSITORY environment variable is not set');
-        }
-
-        const [owner, repo] = githubRepository.split('/');
-        const url = `https://api.github.com/repos/${owner}/${repo}`;
+        const { owner, repo } = getRepoContext();
+        const url = `${API_BASE}/repos/${owner}/${repo}`;
 
         try {
-            const response = await axios.get(url, {
-                headers: {
-                    'Authorization': `token ${token}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                }
-            });
+            const response = await fetch(url, { method: 'GET', headers: buildHeaders(token) });
 
-            return response.data.default_branch;
+            if (!response.ok) {
+                throw new Error(`Failed to fetch repository info: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json() as RepoInfoResponse;
+            return data.default_branch;
         } catch (error) {
             console.error('Error fetching repository information:', error);
             throw error;

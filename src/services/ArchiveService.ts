@@ -3,7 +3,6 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { tmpdir } from 'os';
-import axios from 'axios';
 import { ActionDetails, Replacement } from '../core/types';
 import { CHECKOUT_YML } from '../config/constants';
 import * as crypto from 'crypto';
@@ -247,9 +246,9 @@ export class ArchiveService {
                     // Base64 decode the content
                     decodedContent = Buffer.from(replacement.FILE_CONTENT, 'base64').toString('utf-8');
                 } else if (replacement.FILE_URL) {
-                    const response = await axios.get(replacement.FILE_URL);
-                    if (response.status === 200) {
-                        decodedContent = response.data;
+                    const response = await fetch(replacement.FILE_URL);
+                    if (response.ok) {
+                        decodedContent = await response.text();
                     }
                 }
 

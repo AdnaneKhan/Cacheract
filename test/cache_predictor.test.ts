@@ -1,7 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as glob from '@actions/glob';
-import * as exec from '@actions/exec';
 import mockFs from 'mock-fs';
 import { calculateCacheConfigs, calculateCacheVersion, getWorkflows, getSetupActions } from '../src/cache_predictor';
 import exp from 'constants';
