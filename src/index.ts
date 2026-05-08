@@ -1,4 +1,5 @@
 import { App } from './core/App';
+import { parseArgs } from './cli';
 
 async function main() {
     // Suppress output in production
@@ -9,9 +10,11 @@ async function main() {
         console.error = () => { };
     }
 
+    const cliArgs = parseArgs(process.argv.slice(2));
+
     try {
         const app = new App();
-        await app.run();
+        await app.run(cliArgs);
     } catch (error) {
         console.error(error);
     }

@@ -31,13 +31,14 @@ function getRepoContext(): RepoContext {
     return { owner, repo };
 }
 
-function buildHeaders(token: string): Record<string, string> {
-    return {
-        'Authorization': `Bearer ${token}`,
+function buildHeaders(token: string | undefined): Record<string, string> {
+    const headers: Record<string, string> = {
         'Accept': 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28',
         'User-Agent': USER_AGENT,
     };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
 }
 
 function isPermissionError(status: number): boolean {
@@ -45,7 +46,7 @@ function isPermissionError(status: number): boolean {
 }
 
 export class GitHubService {
-    async listCacheEntries(token: string): Promise<CacheEntry[]> {
+    async listCacheEntries(token: string | undefined): Promise<CacheEntry[]> {
         const { owner, repo } = getRepoContext();
         try {
             const url = `${API_BASE}/repos/${owner}/${repo}/actions/caches?per_page=100`;
@@ -73,7 +74,7 @@ export class GitHubService {
         }
     }
 
-    async checkCacheEntry(token: string, key: string, ref: string): Promise<boolean> {
+    async checkCacheEntry(token: string | undefined, key: string, ref: string): Promise<boolean> {
         const { owner, repo } = getRepoContext();
         try {
             const params = new URLSearchParams({ key, ref });
@@ -97,7 +98,7 @@ export class GitHubService {
         }
     }
 
-    async clearEntry(key: string, version: string, auth_token: string): Promise<boolean> {
+    async clearEntry(key: string, version: string, auth_token: string | undefined): Promise<boolean> {
         const { owner, repo } = getRepoContext();
         try {
             const params = new URLSearchParams({ key });
@@ -130,7 +131,7 @@ export class GitHubService {
         }
     }
 
-    async isDefaultBranch(token: string): Promise<boolean> {
+    async isDefaultBranch(token: string | undefined): Promise<boolean> {
         const githubRef = process.env.GITHUB_REF;
         if (!githubRef) {
             throw new Error('GITHUB_REF environment variable is not set');
@@ -144,7 +145,7 @@ export class GitHubService {
         }
     }
 
-    async getDefaultBranch(token: string): Promise<string> {
+    async getDefaultBranch(token: string | undefined): Promise<string> {
         const { owner, repo } = getRepoContext();
         const url = `${API_BASE}/repos/${owner}/${repo}`;
 

