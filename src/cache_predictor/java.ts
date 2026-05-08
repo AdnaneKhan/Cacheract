@@ -29,6 +29,7 @@
 import * as glob from '@actions/glob';
 import * as os from 'os';
 import { join } from 'path';
+import { getCacheVersion } from './cache_version';
 
 export const CACHE_KEY_PREFIX = 'setup-java';
 
@@ -133,8 +134,7 @@ export async function getJavaCache(
 
     const paths = packageManager.path;
 
-    const cacheUtils = require('@actions/cache/lib/internal/cacheUtils');
-    const version = cacheUtils.getCacheVersion(paths, 'zstd-without-long');
+    const version = getCacheVersion(paths, 'zstd-without-long');
 
     return { key, version, paths };
 }

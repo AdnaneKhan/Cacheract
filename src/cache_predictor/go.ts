@@ -31,6 +31,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
+import { getCacheVersion } from './cache_version';
 
 const execFileAsync = promisify(execFile);
 
@@ -153,8 +154,7 @@ export async function getGoCache(
     const key = await computeGoPrimaryKey(config);
     const paths = await getGoCacheDirectoryPath(packageManagerInfo);
 
-    const cacheUtils = require('@actions/cache/lib/internal/cacheUtils');
-    const version = cacheUtils.getCacheVersion(paths, 'zstd-without-long');
+    const version = getCacheVersion(paths, 'zstd-without-long');
 
     return { key, version, paths };
 }

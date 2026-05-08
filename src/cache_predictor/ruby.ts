@@ -32,6 +32,7 @@ import * as crypto from 'crypto';
 import * as stream from 'stream';
 import * as util from 'util';
 import { execFile } from 'child_process';
+import { getCacheVersion } from './cache_version';
 
 const execFileAsync = util.promisify(execFile);
 
@@ -176,8 +177,7 @@ export async function getRubyCache(
     const key = await computeRubyPrimaryKey(config);
     const paths = [BUNDLE_CACHE_PATH];
 
-    const cacheUtils = require('@actions/cache/lib/internal/cacheUtils');
-    const version = cacheUtils.getCacheVersion(paths, 'zstd-without-long');
+    const version = getCacheVersion(paths, 'zstd-without-long');
 
     return { key, version, paths };
 }
