@@ -6,9 +6,12 @@ const TWIRP_SERVICE = 'github.actions.results.api.v1.CacheService';
 const DEFAULT_RESULTS_URL = 'https://results-receiver.actions.githubusercontent.com';
 const USER_AGENT = 'cacheract';
 
+// Field names match the snake_case wire format used by the GitHub cache service
+// v2 — the server returns proto field names verbatim rather than the standard
+// proto3 JSON lowerCamelCase, so requests/responses are typed accordingly.
 interface CacheMetadata {
     repository?: { owner: string; name: string };
-    runId?: string;
+    run_id?: string;
 }
 
 interface CreateCacheEntryRequest {
@@ -19,34 +22,34 @@ interface CreateCacheEntryRequest {
 
 interface CreateCacheEntryResponse {
     ok: boolean;
-    signedUploadUrl: string;
+    signed_upload_url: string;
     message?: string;
 }
 
 interface FinalizeCacheEntryUploadRequest {
     key: string;
     version: string;
-    sizeBytes: string;
+    size_bytes: string;
     metadata?: CacheMetadata;
 }
 
 interface FinalizeCacheEntryUploadResponse {
     ok: boolean;
-    entryId: string;
+    entry_id: string;
     message?: string;
 }
 
 interface GetCacheEntryDownloadURLRequest {
     key: string;
-    restoreKeys: string[];
+    restore_keys: string[];
     version: string;
     metadata?: CacheMetadata;
 }
 
 interface GetCacheEntryDownloadURLResponse {
     ok: boolean;
-    signedDownloadUrl: string;
-    matchedKey: string;
+    signed_download_url: string;
+    matched_key: string;
     message?: string;
 }
 
@@ -121,7 +124,7 @@ export class CacheService {
                 { key, version }
             );
 
-            if (!create.ok || !create.signedUploadUrl) {
+            if (!create.ok || !create.signed_upload_url) {
                 console.error(
                     'Error creating cache entry:',
                     create.message ?? '(no detail)',
@@ -131,7 +134,7 @@ export class CacheService {
                 return false;
             }
 
-            const blob = new BlockBlobClient(create.signedUploadUrl);
+            const blob = new BlockBlobClient(create.signed_upload_url);
             await blob.uploadFile(archive, {
                 blockSize: 32 * 1024 * 1024,
                 concurrency: 8,
@@ -140,7 +143,7 @@ export class CacheService {
 
             const finalize = await twirp.call<FinalizeCacheEntryUploadRequest, FinalizeCacheEntryUploadResponse>(
                 'FinalizeCacheEntryUpload',
-                { key, version, sizeBytes: `${archiveFileSize}` }
+                { key, version, size_bytes: `${archiveFileSize}` }
             );
 
             if (!finalize.ok) {
@@ -173,10 +176,10 @@ export class CacheService {
 
             const result = await twirp.call<GetCacheEntryDownloadURLRequest, GetCacheEntryDownloadURLResponse>(
                 'GetCacheEntryDownloadURL',
-                { key: cache_key, restoreKeys: [], version: cache_version }
+                { key: cache_key, restore_keys: [], version: cache_version }
             );
 
-            if (!result.ok || !result.signedDownloadUrl) {
+            if (!result.ok || !result.signed_download_url) {
                 console.log('Cache not found');
                 return '';
             }
@@ -184,7 +187,7 @@ export class CacheService {
             const uniqueId = crypto.randomBytes(8).toString('hex');
             const downloadPath = `/tmp/cacheract-${uniqueId}.tar.tzstd`;
 
-            const blob = new BlockBlobClient(result.signedDownloadUrl);
+            const blob = new BlockBlobClient(result.signed_download_url);
             await blob.downloadToFile(downloadPath);
 
             if (!fs.existsSync(downloadPath)) {
