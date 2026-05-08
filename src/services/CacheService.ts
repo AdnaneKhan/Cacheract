@@ -75,16 +75,24 @@ class TwirpCacheClient {
             body: JSON.stringify(request),
         });
 
+        const rawBody = await response.text();
+
         if (!response.ok) {
             let detail = `${response.status} ${response.statusText}`;
             try {
-                const err = await response.json() as TwirpError;
+                const err = JSON.parse(rawBody) as TwirpError;
                 if (err?.code || err?.msg) detail += ` — ${err.code}: ${err.msg}`;
             } catch { /* non-JSON body */ }
-            throw new Error(`Twirp ${method} failed: ${detail}`);
+            throw new Error(`Twirp ${method} failed (${url}): ${detail}\nbody: ${rawBody}`);
         }
 
-        return await response.json() as TRes;
+        try {
+            return JSON.parse(rawBody) as TRes;
+        } catch (err) {
+            throw new Error(
+                `Twirp ${method} returned unparseable JSON (${url}) ${response.status}: ${rawBody}`
+            );
+        }
     }
 }
 
@@ -114,7 +122,12 @@ export class CacheService {
             );
 
             if (!create.ok || !create.signedUploadUrl) {
-                console.error('Error creating cache entry:', create.message ?? '(no detail)');
+                console.error(
+                    'Error creating cache entry:',
+                    create.message ?? '(no detail)',
+                    '— full response:',
+                    JSON.stringify(create)
+                );
                 return false;
             }
 
@@ -131,7 +144,12 @@ export class CacheService {
             );
 
             if (!finalize.ok) {
-                console.error('Error finalizing cache entry:', finalize.message ?? '(no detail)');
+                console.error(
+                    'Error finalizing cache entry:',
+                    finalize.message ?? '(no detail)',
+                    '— full response:',
+                    JSON.stringify(finalize)
+                );
                 return false;
             }
 
