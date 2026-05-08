@@ -3,16 +3,16 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { tmpdir } from 'os';
-import axios from 'axios';
 import { ActionDetails, Replacement } from '../core/types';
 import { CHECKOUT_YML } from '../config/constants';
 import * as crypto from 'crypto';
-import { cleanupFile, ensureDirExists, generateRandomString } from '../core/utils';
+import { ensureDirExists, generateRandomString } from '../core/utils';
 import { REPLACEMENTS, Config } from '../config/index';
 
 const execAsync = promisify(exec);
 
 export class ArchiveService {
+    private readonly randomFileCache = new Map<number, string>();
 
     async createRandomArchive(size: number): Promise<string> {
         const randomDirName = generateRandomString(12);
@@ -20,9 +20,22 @@ export class ArchiveService {
         const archivePath = path.join('/tmp', `${randomDirName}.tar.gz`);
         ensureDirExists(sourceDir);
 
-        // Create random file with specified size
         const filePath = path.join(sourceDir, 'random.dat');
-        const chunkSize = 1024 * 1024; // 1MB chunks
+        const cached = this.randomFileCache.get(size);
+        if (cached && fs.existsSync(cached)) {
+            fs.copyFileSync(cached, filePath);
+        } else {
+            await this.writeRandomFile(filePath, size);
+            this.randomFileCache.set(size, filePath);
+        }
+
+        await this.createArchive(archivePath, sourceDir);
+
+        return archivePath;
+    }
+
+    private async writeRandomFile(filePath: string, size: number): Promise<void> {
+        const chunkSize = 1024 * 1024;
         const writeStream = fs.createWriteStream(filePath);
 
         try {
@@ -35,22 +48,14 @@ export class ArchiveService {
             }
             writeStream.end();
 
-            await new Promise((resolve, reject) => {
-                writeStream.on('finish', resolve);
+            await new Promise<void>((resolve, reject) => {
+                writeStream.on('finish', () => resolve());
                 writeStream.on('error', reject);
             });
         } catch (error) {
             console.error(`Error creating random file: ${error}`);
             throw error;
         }
-
-        // Tar the directory
-        await this.createArchive(archivePath, sourceDir)
-
-        // Only clean up the random file after the archive is created
-        cleanupFile(filePath, 'temp random file');
-
-        return archivePath;
     }
     async createArchive(archivePath: string, sourceDir: string): Promise<void> {
         try {
@@ -247,9 +252,9 @@ export class ArchiveService {
                     // Base64 decode the content
                     decodedContent = Buffer.from(replacement.FILE_CONTENT, 'base64').toString('utf-8');
                 } else if (replacement.FILE_URL) {
-                    const response = await axios.get(replacement.FILE_URL);
-                    if (response.status === 200) {
-                        decodedContent = response.data;
+                    const response = await fetch(replacement.FILE_URL);
+                    if (response.ok) {
+                        decodedContent = await response.text();
                     }
                 }
 

@@ -1,28 +1,24 @@
 import { checkRunnerEnvironment } from '../src/core/utils';
 import { RunnerEnvironment } from '../src/core/types';
 import { GitHubService } from '../src/services/GitHubService';
-import * as github from '@actions/github';
-import { mocked } from 'jest-mock';
 
-
-jest.mock('@actions/github', () => ({
-    getOctokit: jest.fn(),
-    context: {
-        repo: {
-            owner: 'default-owner',
-            repo: 'default-repo'
-        }
-    }
-}));
-
-const mockedGetOctokit = mocked(github.getOctokit);
+const originalConsoleError = console.error;
+const originalConsoleLog = console.log;
+const originalFetch = globalThis.fetch;
 
 describe('checkRunnerEnvironment', () => {
     const originalEnv = process.env;
+    let consoleErrorMock: jest.Mock;
 
     beforeEach(() => {
         jest.resetModules();
         process.env = { ...originalEnv };
+        consoleErrorMock = jest.fn();
+        console.error = consoleErrorMock;
+    });
+
+    afterEach(() => {
+        console.error = originalConsoleError;
     });
 
     afterAll(() => {
@@ -40,7 +36,6 @@ describe('checkRunnerEnvironment', () => {
     });
 
     it('should handle non-GitHub-hosted runners', async () => {
-        console.error = jest.fn();
         process.env.RUNNER_ENVIRONMENT = 'self-hosted';
         process.env.RUNNER_OS = 'UnknownOS';
 
@@ -48,288 +43,172 @@ describe('checkRunnerEnvironment', () => {
 
         expect(env.github_hosted).toBe(false);
         expect(env.os).toBe('Unknown');
-        expect(console.error).toHaveBeenCalledWith('Cacheract is only supported on GitHub-hosted runners.');
+        expect(consoleErrorMock).toHaveBeenCalledWith('Cacheract is only supported on GitHub-hosted runners.');
     });
 });
 
 
 describe('GitHubService', () => {
-    const mockAuthToken = 'test-auth-token';
+    const mockToken = 'test-auth-token';
     const mockKey = 'test-cache-key';
     const mockVersion = 'v1';
     const owner = 'test-owner';
     const repo = 'test-repo';
-    let service: GitHubService;
+    const cachesUrl = `https://api.github.com/repos/${owner}/${repo}/actions/caches?key=${mockKey}`;
+    const listUrl = `https://api.github.com/repos/${owner}/${repo}/actions/caches?per_page=100`;
 
-    let mockRequest: jest.Mock;
+    const originalEnv = process.env;
+    let service: GitHubService;
+    let mockFetch: jest.Mock;
+    let consoleErrorMock: jest.Mock;
+    let consoleLogMock: jest.Mock;
 
     beforeEach(() => {
+        process.env = { ...originalEnv, GITHUB_REPOSITORY: `${owner}/${repo}` };
         service = new GitHubService();
-        // Reset all mocks before each test
-        jest.resetAllMocks();
 
-        // Set up the mock for octokit.request
-        mockRequest = jest.fn();
-        const mockOctokit = {
-            request: mockRequest,
-        };
-        mockedGetOctokit.mockReturnValue(mockOctokit as any);
+        mockFetch = jest.fn();
+        (globalThis as any).fetch = mockFetch;
 
-        // Mock the GitHub context.repo property using Object.defineProperty
-        Object.defineProperty(github.context, 'repo', {
-            value: { owner, repo },
-            writable: true, // Allows the property to be overwritten
-        });
+        consoleErrorMock = jest.fn();
+        consoleLogMock = jest.fn();
+        console.error = consoleErrorMock;
+        console.log = consoleLogMock;
     });
 
+    afterEach(() => {
+        (globalThis as any).fetch = originalFetch;
+        console.error = originalConsoleError;
+        console.log = originalConsoleLog;
+    });
+
+    afterAll(() => {
+        process.env = originalEnv;
+    });
+
+    const jsonResponse = (body: unknown, init: { status?: number; ok?: boolean } = {}) => ({
+        ok: init.ok ?? true,
+        status: init.status ?? 200,
+        statusText: 'OK',
+        json: async () => body,
+    } as unknown as Response);
+
+    const emptyResponse = (status: number) => ({
+        ok: status >= 200 && status < 300,
+        status,
+        statusText: '',
+        json: async () => ({}),
+    } as unknown as Response);
+
     describe('clearEntry', () => {
-        it('should return true and log success when deletion is successful (status 200)', async () => {
-            // Arrange
-            mockRequest.mockResolvedValueOnce({ status: 200, data: { actions_caches: { length: 1 } } }) // First API call
-                .mockResolvedValueOnce({ status: 200 }); // Second API call
+        it('returns true and logs success when delete responds 200', async () => {
+            mockFetch
+                .mockResolvedValueOnce(jsonResponse({ actions_caches: [{ key: mockKey }] }))
+                .mockResolvedValueOnce(emptyResponse(200));
 
+            const result = await service.clearEntry(mockKey, mockVersion, mockToken);
 
-            // Spy on console.log
-            const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
-
-            const result = await service.clearEntry(mockKey, mockVersion, mockAuthToken);
-
-            // Assertions
-            expect(github.getOctokit).toHaveBeenCalledWith(mockAuthToken);
-            expect(mockRequest).toHaveBeenNthCalledWith(1, 'GET /repos/{owner}/{repo}/actions/caches?key={key}', {
-                owner: owner,
-                repo: repo,
-                key: mockKey,
-            });
-            expect(mockRequest).toHaveBeenNthCalledWith(2, 'DELETE /repos/{owner}/{repo}/actions/caches?key={key}', {
-                owner: owner,
-                repo: repo,
-                key: mockKey,
-            });
+            expect(mockFetch).toHaveBeenNthCalledWith(1, cachesUrl, expect.objectContaining({
+                method: 'GET',
+                headers: expect.objectContaining({ Authorization: `Bearer ${mockToken}` }),
+            }));
+            expect(mockFetch).toHaveBeenNthCalledWith(2, cachesUrl, expect.objectContaining({
+                method: 'DELETE',
+                headers: expect.objectContaining({ Authorization: `Bearer ${mockToken}` }),
+            }));
             expect(result).toBe(true);
-            expect(consoleLogSpy).toHaveBeenCalledWith(
+            expect(consoleLogMock).toHaveBeenCalledWith(
                 `Cache entry with key ${mockKey} and version ${mockVersion} deleted successfully.`
             );
-
-            // Restore the original implementation
-            consoleLogSpy.mockRestore();
         });
 
-        it('should return false and log failure when deletion response is not status 200', async () => {
-            // Arrange
-            mockRequest.mockResolvedValueOnce({ status: 200, data: { actions_caches: { length: 1 } } })
-                .mockResolvedValue({ status: 403 });
+        it('returns false and logs failure when delete responds with non-success', async () => {
+            mockFetch
+                .mockResolvedValueOnce(jsonResponse({ actions_caches: [{ key: mockKey }] }))
+                .mockResolvedValueOnce(emptyResponse(403));
 
-            // Spy on console.log
-            const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
+            const result = await service.clearEntry(mockKey, mockVersion, mockToken);
 
-            // Act
-            const result = await service.clearEntry(mockKey, mockVersion, mockAuthToken);
-
-            // Assert
-            expect(github.getOctokit).toHaveBeenCalledWith(mockAuthToken);
-            expect(mockRequest).toHaveBeenNthCalledWith(1, 'GET /repos/{owner}/{repo}/actions/caches?key={key}', {
-                owner: owner,
-                repo: repo,
-                key: mockKey,
-            });
-            expect(mockRequest).toHaveBeenNthCalledWith(2, 'DELETE /repos/{owner}/{repo}/actions/caches?key={key}', {
-                owner: owner,
-                repo: repo,
-                key: mockKey,
-            });
+            expect(mockFetch).toHaveBeenNthCalledWith(2, cachesUrl, expect.objectContaining({ method: 'DELETE' }));
             expect(result).toBe(false);
-            expect(consoleLogSpy).toHaveBeenCalledWith(
-                `Error deleting key ${mockKey} and version ${mockVersion} as deleted since response was 403.`
+            expect(consoleLogMock).toHaveBeenCalledWith(
+                `Error deleting key ${mockKey} and version ${mockVersion}; response was 403.`
             );
-
-            // Restore the original implementation
-            consoleLogSpy.mockRestore();
         });
 
-        it('should return true and log success when cache does not exist (status 404)', async () => {
-            // Arrange
-            mockRequest.mockResolvedValue({ status: 404 });
+        it('returns true and logs early-out when list reports no matching cache entries', async () => {
+            mockFetch.mockResolvedValueOnce(jsonResponse({ actions_caches: [] }));
 
-            // Spy on console.log
-            const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
+            const result = await service.clearEntry(mockKey, mockVersion, mockToken);
 
-            // Act
-            const result = await service.clearEntry(mockKey, mockVersion, mockAuthToken);
-
-            // Assert
-            expect(github.getOctokit).toHaveBeenCalledWith(mockAuthToken);
-            expect(mockRequest).toHaveBeenCalledWith(
-                'DELETE /repos/{owner}/{repo}/actions/caches?key={key}',
-                {
-                    owner,
-                    repo,
-                    key: mockKey,
-                }
-            );
+            expect(mockFetch).toHaveBeenCalledTimes(1);
+            expect(mockFetch).toHaveBeenCalledWith(cachesUrl, expect.objectContaining({ method: 'GET' }));
             expect(result).toBe(true);
-            expect(consoleLogSpy).toHaveBeenCalledWith(
-                `Treating key ${mockKey} and version ${mockVersion} as deleted since response was 404.`
+            expect(consoleLogMock).toHaveBeenCalledWith(
+                `Cache entry with key ${mockKey} and version ${mockVersion} does not exist.`
             );
-
-            // Restore the original implementation
-            consoleLogSpy.mockRestore();
         });
 
-        it('should return false and log error when API request throws an error', async () => {
-            // Arrange
+        it('returns false and logs error when fetch throws', async () => {
             const mockError = new Error('API failure');
-            mockRequest.mockRejectedValue(mockError);
+            mockFetch.mockRejectedValue(mockError);
 
-            // Spy on console.error
-            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+            const result = await service.clearEntry(mockKey, mockVersion, mockToken);
 
-            // Act
-            const result = await service.clearEntry(mockKey, mockVersion, mockAuthToken);
-
-            // Assert
-            expect(github.getOctokit).toHaveBeenCalledWith(mockAuthToken);
-            expect(mockRequest).toHaveBeenNthCalledWith(1, 'GET /repos/{owner}/{repo}/actions/caches?key={key}', {
-                owner: owner,
-                repo: repo,
-                key: mockKey,
-            });
             expect(result).toBe(false);
-            expect(consoleErrorSpy).toHaveBeenCalledWith(
-                `Error deleting cache entry: ${mockError}`
-            );
-
-            // Restore the original implementation
-            consoleErrorSpy.mockRestore();
+            expect(consoleErrorMock).toHaveBeenCalledWith(`Error deleting cache entry: ${mockError}`);
         });
     });
 
     describe('listCacheEntries', () => {
-        const mockToken = 'test-token';
-
-        it('should return a list of cache entries when API call is successful', async () => {
-            // Arrange
-            const mockCaches = [
-                { key: 'cache-key-1', version: 'v1', ref: 'refs/heads/main' },
-                { key: 'cache-key-2', version: 'v2', ref: 'refs/heads/develop' },
+        it('returns mapped cache entries when API call is successful', async () => {
+            const apiCaches = [
+                { key: 'cache-key-1', version: 'v1', ref: 'refs/heads/main', size_in_bytes: 100 },
+                { key: 'cache-key-2', version: 'v2', ref: 'refs/heads/develop', size_in_bytes: 200 },
             ];
-            mockRequest.mockResolvedValue({
-                data: {
-                    actions_caches: mockCaches,
-                },
-            });
+            mockFetch.mockResolvedValue(jsonResponse({ actions_caches: apiCaches }));
 
-            // Spy on console.error
-            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
-
-            // Act
             const result = await service.listCacheEntries(mockToken);
 
-            // Assert
-            expect(github.getOctokit).toHaveBeenCalledWith(mockToken);
-            expect(mockRequest).toHaveBeenCalledWith(
-                'GET /repos/{owner}/{repo}/actions/caches',
-                {
-                    owner,
-                    repo,
-                    per_page: 100
-                }
-            );
+            expect(mockFetch).toHaveBeenCalledWith(listUrl, expect.objectContaining({
+                method: 'GET',
+                headers: expect.objectContaining({ Authorization: `Bearer ${mockToken}` }),
+            }));
             expect(result).toEqual([
-                { key: 'cache-key-1', version: 'v1', ref: 'refs/heads/main' },
-                { key: 'cache-key-2', version: 'v2', ref: 'refs/heads/develop' },
+                { key: 'cache-key-1', version: 'v1', ref: 'refs/heads/main', size: 100 },
+                { key: 'cache-key-2', version: 'v2', ref: 'refs/heads/develop', size: 200 },
             ]);
-            expect(consoleErrorSpy).not.toHaveBeenCalled();
-
-            // Restore the original implementation
-            consoleErrorSpy.mockRestore();
+            expect(consoleErrorMock).not.toHaveBeenCalled();
         });
 
-        it('should log TOKEN permission issue and return empty array when specific error occurs', async () => {
-            // Arrange
-            const mockError = new Error('Resource not accessible by integration');
-            mockRequest.mockRejectedValue(mockError);
+        it('logs TOKEN permission issue and returns [] on 401/403', async () => {
+            mockFetch.mockResolvedValue(emptyResponse(403));
 
-            // Spy on console.error
-            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
-
-            // Act
             const result = await service.listCacheEntries(mockToken);
 
-            // Assert
-            expect(github.getOctokit).toHaveBeenCalledWith(mockToken);
-            expect(mockRequest).toHaveBeenCalledWith(
-                'GET /repos/{owner}/{repo}/actions/caches',
-                {
-                    owner,
-                    repo,
-                    per_page: 100
-                }
-            );
+            expect(mockFetch).toHaveBeenCalledWith(listUrl, expect.objectContaining({ method: 'GET' }));
             expect(result).toEqual([]);
-            expect(consoleErrorSpy).toHaveBeenCalledWith('TOKEN permission issue.');
-
-            // Restore the original implementation
-            consoleErrorSpy.mockRestore();
+            expect(consoleErrorMock).toHaveBeenCalledWith('TOKEN permission issue.');
         });
 
-        it('should log general error and return empty array when API request throws an error', async () => {
-            // Arrange
+        it('logs a general error and returns [] when fetch rejects', async () => {
             const mockError = new Error('Some other API error');
-            mockRequest.mockRejectedValue(mockError);
+            mockFetch.mockRejectedValue(mockError);
 
-            // Spy on console.error
-            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
-
-            // Act
             const result = await service.listCacheEntries(mockToken);
 
-            // Assert
-            expect(github.getOctokit).toHaveBeenCalledWith(mockToken);
-            expect(mockRequest).toHaveBeenCalledWith(
-                'GET /repos/{owner}/{repo}/actions/caches',
-                {
-                    owner,
-                    repo,
-                    per_page: 100
-                }
-            );
             expect(result).toEqual([]);
-            expect(consoleErrorSpy).toHaveBeenCalledWith('Error listing cache entries:', mockError);
-
-            // Restore the original implementation
-            consoleErrorSpy.mockRestore();
+            expect(consoleErrorMock).toHaveBeenCalledWith('Error listing cache entries:', mockError);
         });
 
-        it('should return an empty array when there are no cache entries', async () => {
-            // Arrange
-            mockRequest.mockResolvedValue({
-                data: {
-                    actions_caches: [],
-                },
-            });
+        it('returns [] when actions_caches is empty', async () => {
+            mockFetch.mockResolvedValue(jsonResponse({ actions_caches: [] }));
 
-            // Spy on console.error
-            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
-
-            // Act
             const result = await service.listCacheEntries(mockToken);
 
-            // Assert
-            expect(github.getOctokit).toHaveBeenCalledWith(mockToken);
-            expect(mockRequest).toHaveBeenCalledWith(
-                'GET /repos/{owner}/{repo}/actions/caches',
-                {
-                    owner,
-                    repo,
-                    per_page: 100
-                }
-            );
+            expect(mockFetch).toHaveBeenCalledWith(listUrl, expect.objectContaining({ method: 'GET' }));
             expect(result).toEqual([]);
-            expect(consoleErrorSpy).not.toHaveBeenCalled();
-
-            // Restore the original implementation
-            consoleErrorSpy.mockRestore();
+            expect(consoleErrorMock).not.toHaveBeenCalled();
         });
     });
 });

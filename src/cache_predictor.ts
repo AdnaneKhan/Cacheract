@@ -6,6 +6,7 @@ import os from 'os';
 import * as glob from '@actions/glob';
 import * as yaml from 'js-yaml';
 import { getPackageManagerInfo, findLockFile, PackageManagerInfo, getCacheDirectories, NodeCacheConfig } from './cache_predictor/node';
+import { getCacheVersion } from './cache_predictor/cache_version';
 
 export interface CacheParams {
     key: string;
@@ -176,9 +177,5 @@ export async function calculateCacheConfigs(): Promise<Set<string>> {
 
 
 export async function calculateCacheVersion(paths: string[]): Promise<string> {
-    var cacheUtils = require('@actions/cache/lib/internal/cacheUtils');
-
-    // Use same call from `actions/toolkit`.
-    const version = cacheUtils.getCacheVersion(paths, 'zstd-without-long');
-    return version
+    return getCacheVersion(paths, 'zstd-without-long');
 }

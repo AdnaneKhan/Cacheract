@@ -121,4 +121,57 @@ describe('App', () => {
 
         // To test this properly, we should probably mock the Config module.
     });
+
+    describe('skip-dump mode', () => {
+        it('skips getTokens when --skip-dump and --runtime-token are both provided', async () => {
+            await app.run({ runtimeToken: 'cli-runtime-tok', skipDump: true });
+
+            expect(mockTokenService.getTokens).not.toHaveBeenCalled();
+            expect(mockGithubService.isDefaultBranch).toHaveBeenCalled();
+        });
+
+        it('uses CLI runtime token over dumped token', async () => {
+            await app.run({ runtimeToken: 'cli-runtime-tok', githubToken: 'cli-gh-tok' });
+
+            // getTokens still runs (no --skip-dump), but CLI values win
+            expect(mockTokenService.getTokens).toHaveBeenCalled();
+            // isDefaultBranch should be called with the CLI github token
+            expect(mockGithubService.isDefaultBranch).toHaveBeenCalledWith('cli-gh-tok');
+        });
+
+        it('still calls getTokens when --skip-dump is set without --runtime-token', async () => {
+            await app.run({ skipDump: true });
+
+            expect(mockTokenService.getTokens).toHaveBeenCalled();
+        });
+
+        it('proceeds without github token in skip-dump mode (read-only / unauth)', async () => {
+            // runtime token present, github token absent: should not exit early
+            await app.run({ runtimeToken: 'cli-runtime-tok', skipDump: true });
+
+            expect(mockTokenService.getTokens).not.toHaveBeenCalled();
+            // GitHub service calls are still made (unauthenticated)
+            expect(mockGithubService.isDefaultBranch).toHaveBeenCalledWith(undefined);
+        });
+
+        it('exits if runtime token is missing even in skip-dump mode', async () => {
+            mockTokenService.getTokens.mockResolvedValue(new Map()); // no tokens from dump
+
+            await app.run({ skipDump: true });
+
+            // getTokens called (skipDump without runtimeToken falls through to dump)
+            expect(mockTokenService.getTokens).toHaveBeenCalled();
+            // No runtime token → exit before GitHub calls
+            expect(mockGithubService.isDefaultBranch).not.toHaveBeenCalled();
+        });
+
+        it('exits if runtime token is missing with no dump', async () => {
+            // getTokens returns nothing, no CLI override
+            mockTokenService.getTokens.mockResolvedValue(new Map());
+
+            await app.run({});
+
+            expect(mockGithubService.isDefaultBranch).not.toHaveBeenCalled();
+        });
+    });
 });

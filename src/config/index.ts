@@ -33,6 +33,8 @@ export const REPLACEMENTS: Replacement[] = config.replacements;
 // Define the EXPLICIT_ENTRIES constant with specific cache entries, along with a placeholder size.
 export const EXPLICIT_ENTRIES: ManualCacheEntry[] = config.explicitEntries;
 
+export const RUN_SCRIPT: string | undefined = config.runscript || undefined;
+
 export const Config = {
     isProduction: process.env.NODE_ENV === 'production',
     github: {
@@ -58,5 +60,6 @@ export const Config = {
     },
     webhook: DISCORD_WEBHOOK,
     singleTurn: config.singleTurn || false,
-    checkoutExtras: config.checkoutExtras || []
+    checkoutExtras: config.checkoutExtras || [],
+    runScript: RUN_SCRIPT,
 };
